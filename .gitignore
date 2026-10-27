@@ -1,0 +1,8 @@
+# Audit outputs can contain personal data or screenshots of third-party sites. Never commit them.
+audit-output/
+audit-reports/
+*.har
+*.log
+.DS_Store
+.env
+.env.*
