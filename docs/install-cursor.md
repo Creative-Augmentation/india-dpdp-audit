@@ -36,7 +36,7 @@ In Agent chat, type `/` and search for `india-dpdp-audit` to attach it to a mess
 
 ## Workaround if your Cursor version has no skills feature
 
-Not needed if the steps above work. Otherwise, Cursor rules are `.mdc` files in `.cursor/rules/` (a plain `.md` there is ignored) with `description`, `globs`, `alwaysApply` frontmatter, and Cursor also reads `AGENTS.md` in the project root. **Workaround:** create `.cursor/rules/india-dpdp-audit.mdc` with a `description` line and `alwaysApply: false`, and put the contents of `skills/india-dpdp-audit/SKILL.md` (without its own frontmatter) in the body; keep `legal-baseline.md` in the project and point to it by path. This is untested.
+Not needed if the steps above work. **Untested workaround:** keep the entire skill folder at `skills/india-dpdp-audit/` in your project, including its references, assets, scripts and licence. Create `.cursor/rules/india-dpdp-audit.mdc` with a `description` line and `alwaysApply: false`. Its body should instruct the agent to read `skills/india-dpdp-audit/SKILL.md` when the user requests a DPDP audit, and resolve that skill's relative links from its folder. Do not flatten the skill into the rule or retain only the legal reference; the platform and output-contract links need the complete package. Attach this rule explicitly if automatic selection is unavailable. This fallback has not been runtime-tested in Cursor.
 
 ## UNVERIFIED
 

@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "India DPDP audit record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "audit_date", "scope", "coverage", "evidence", "data_map", "legal_ledger", "findings", "actions"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "audit_date": {"type": "string", "format": "date"},
+    "scope": {"$ref": "#/$defs/scope"},
+    "coverage": {"type": "array", "items": {"$ref": "#/$defs/journey"}, "minItems": 1},
+    "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
+    "data_map": {"type": "array", "items": {"$ref": "#/$defs/flow"}},
+    "legal_ledger": {"type": "array", "items": {"$ref": "#/$defs/legal_entry"}},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+    "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}
+  },
+  "$defs": {
+    "text": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "id": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}(?![\\s\\S])"},
+    "domain": {
+      "type": "string",
+      "maxLength": 253,
+      "pattern": "^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?![\\s\\S])"
+    },
+    "source_url": {"type": "string", "format": "uri", "pattern": "^https://"},
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject", "authorized_domains", "modes", "platforms", "limitations"],
+      "properties": {
+        "subject": {"$ref": "#/$defs/text"},
+        "authorized_domains": {"type": "array", "items": {"$ref": "#/$defs/domain"}, "uniqueItems": true},
+        "modes": {
+          "type": "array",
+          "items": {"enum": ["public", "repository", "internal", "staging"]},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "platforms": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/text"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "limitations": {"type": "array", "items": {"$ref": "#/$defs/text"}, "minItems": 1},
+        "authorized_repositories": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["locator", "revision"],
+            "properties": {
+              "locator": {"$ref": "#/$defs/text"},
+              "revision": {"$ref": "#/$defs/text"}
+            }
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    },
+    "journey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "status", "notes", "evidence_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "name": {"$ref": "#/$defs/text"},
+        "status": {"enum": ["inspected", "blocked", "not_inspected"]},
+        "notes": {"$ref": "#/$defs/text"},
+        "evidence_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}, "uniqueItems": true}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "status", "captured_at", "locator", "observation"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "kind": {"enum": ["public_browser", "public_source", "repository_code", "owner_statement", "internal_record", "staging_check"]},
+        "status": {"enum": ["direct", "limited", "asserted"]},
+        "captured_at": {"type": "string", "format": "date-time"},
+        "locator": {"$ref": "#/$defs/text"},
+        "observation": {"$ref": "#/$defs/text"},
+        "repository": {"$ref": "#/$defs/text"},
+        "revision": {"$ref": "#/$defs/text"}
+      }
+    },
+    "flow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "journey_id", "observed_facts", "evidence_ids", "owner_claims", "unknowns"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "journey_id": {"$ref": "#/$defs/id"},
+        "observed_facts": {"type": "array", "items": {"$ref": "#/$defs/text"}},
+        "evidence_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}, "uniqueItems": true},
+        "owner_claims": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["purpose", "claimed_ground", "evidence_ids"],
+            "properties": {
+              "purpose": {"$ref": "#/$defs/text"},
+              "claimed_ground": {"$ref": "#/$defs/text"},
+              "evidence_ids": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/id"},
+                "minItems": 1,
+                "uniqueItems": true
+              }
+            }
+          }
+        },
+        "unknowns": {"type": "array", "items": {"$ref": "#/$defs/text"}}
+      }
+    },
+    "legal_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "instrument", "provision", "source_url", "verified_on", "published_on", "effective_on", "status", "notes"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "instrument": {"$ref": "#/$defs/text"},
+        "provision": {"$ref": "#/$defs/text"},
+        "source_url": {"$ref": "#/$defs/source_url"},
+        "verified_on": {"type": "string", "format": "date"},
+        "published_on": {"anyOf": [{"type": "string", "format": "date"}, {"type": "null"}]},
+        "effective_on": {"anyOf": [{"type": "string", "format": "date"}, {"type": "null"}]},
+        "status": {"enum": ["current", "future", "uncertain"]},
+        "notes": {"$ref": "#/$defs/text"},
+        "preparation_on": {"type": "string", "format": "date"},
+        "effective_by": {"type": "string", "format": "date"}
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "priority", "confidence", "observation", "evidence_status", "applicability", "applicability_reason", "legal_status", "evidence_ids", "legal_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "title": {"$ref": "#/$defs/text"},
+        "priority": {"enum": ["high", "medium", "low", "informational"]},
+        "confidence": {"enum": ["high", "medium", "low"]},
+        "observation": {"$ref": "#/$defs/text"},
+        "evidence_status": {"enum": ["observed_gap", "not_verified", "meets_sampled_check", "not_applicable"]},
+        "applicability": {"enum": ["applicable", "unknown", "not_applicable"]},
+        "applicability_reason": {"$ref": "#/$defs/text"},
+        "legal_status": {"enum": ["current", "future", "uncertain", "good_practice"]},
+        "evidence_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}, "uniqueItems": true},
+        "legal_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}, "uniqueItems": true}
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "summary", "owner_role", "target", "effort", "finding_ids", "dependencies", "acceptance_criteria", "verification_steps", "verification_mode", "verification_status", "verification_evidence_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "kind": {"enum": ["remediation", "evidence_request"]},
+        "summary": {"$ref": "#/$defs/text"},
+        "owner_role": {"$ref": "#/$defs/text"},
+        "target": {"$ref": "#/$defs/text"},
+        "effort": {"$ref": "#/$defs/text"},
+        "finding_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/id"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "dependencies": {"type": "array", "items": {"$ref": "#/$defs/id"}, "uniqueItems": true},
+        "acceptance_criteria": {"type": "array", "items": {"$ref": "#/$defs/text"}, "minItems": 1},
+        "verification_steps": {"type": "array", "items": {"$ref": "#/$defs/text"}, "minItems": 1},
+        "verification_mode": {"enum": ["public", "repository", "internal", "staging"]},
+        "verification_status": {"enum": ["pending", "blocked", "verified"]},
+        "verification_evidence_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}, "uniqueItems": true}
+      }
+    }
+  }
+}

@@ -18,7 +18,7 @@ mkdir -p ~/.claude/skills
 cp -r skills/india-dpdp-audit ~/.claude/skills/
 ```
 
-The result is `~/.claude/skills/india-dpdp-audit/SKILL.md` and `~/.claude/skills/india-dpdp-audit/references/legal-baseline.md`. The skill's `name` is `india-dpdp-audit`, which matches the folder name.
+The result is the complete `~/.claude/skills/india-dpdp-audit/` package: `SKILL.md`, references, assets, scripts and licence. Keep the folder intact. The skill's `name` is `india-dpdp-audit`, which matches the folder name.
 
 ## Steps (single project)
 

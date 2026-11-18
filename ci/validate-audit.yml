@@ -1,0 +1,29 @@
+name: Validate audit package
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install validation dependencies
+        run: python -m pip install -r skills/india-dpdp-audit/scripts/requirements.txt
+      - name: Test schema, evidence boundaries and CLI
+        run: python -m unittest discover -s tests -v
+      - name: Validate and render the synthetic example
+        run: |
+          python skills/india-dpdp-audit/scripts/audit.py validate skills/india-dpdp-audit/assets/example-audit.json
+          python skills/india-dpdp-audit/scripts/audit.py render skills/india-dpdp-audit/assets/example-audit.json > /tmp/example-audit.md
