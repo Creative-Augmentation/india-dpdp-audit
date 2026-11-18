@@ -4,10 +4,14 @@ Use a feature branch and a pull request. Preserve the read-only audit default an
 
 - Keep shared behaviour in `SKILL.md`; put platform-specific details in the relevant playbook.
 - Cite official legal and vendor sources, record the access date, and label interpretation and applicability. Never copy another project's legal conclusions without checking the primary instrument.
-- For schema or helper changes, include a synthetic example and tests of the affected behaviour. Install `skills/india-dpdp-audit/scripts/requirements.txt` and run `python -m unittest discover -s tests -v`.
+- For schema or helper changes, include a synthetic example and tests of the affected behaviour. Install `skills/india-dpdp-audit/scripts/requirements.txt` and `tests/requirements.txt`, then run `python -m unittest discover -s tests -v`. The test-only GFM renderer checks the actual rendered output, not just escaped strings.
 - Use `evals/` for realistic agent cases. Keep input and expected results separate and use the blind protocol. Do not claim evaluation success unless the recorded run actually occurred.
 - Use `benchmark/` for the Phase 1 synthetic regression set and offline scoring. Keep private held-out packets and judge ledgers outside the checkout. Public expected answers are never evidence of independent accuracy. Opus review and judging are required for this programme; builder tests do not substitute for them.
 - Keep customer reports, credentials and identifiable records out of commits, issues and CI. All committed examples must be invented.
 - Record external code or dataset reuse and its exact licence before importing it. The current release contains original implementation; research links do not imply bundled dependencies or endorsement.
 
 A validator can enforce structure and consistency; reviewers must still assess evidence relevance, legal interpretation and whether a proposed fix solves the actual problem.
+
+## Contribution intake while licensing is pending
+
+The proposed custom licence is not active. Do not merge an outside contribution while the licence transition is pending unless its author has separately and explicitly authorised distribution under both the current licence and the exact proposed replacement, or an owner-approved contribution agreement grants the required rights. Record that permission with the contribution. Submission alone is not treated here as permission to relicense. An author may decline; their contribution must then remain unmerged until compatible terms are agreed. This intake rule does not alter ownership or retrospectively add a grant to existing contributions.

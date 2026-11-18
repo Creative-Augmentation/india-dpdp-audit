@@ -7,7 +7,12 @@
     "eighteen_months": {"earliest": "2027-05-13", "latest": "2027-05-14"}
   },
   "act": {
-    "act_url": "https://www.meity.gov.in/static/uploads/2024/02/Digital-Personal-Data-Protection-Act-2023-1.pdf",
+    "act_urls": [
+      "https://www.meity.gov.in/static/uploads/2024/06/2bf1f0e9f04e6fb4f8fef35e82c42aa5.pdf",
+      "https://www.meity.gov.in/static/uploads/2024/02/Digital-Personal-Data-Protection-Act-2023-1.pdf",
+      "https://www.meity.gov.in/static/uploads/2024/02/Digital-Personal-Data-Protection-Act-2023.pdf"
+    ],
+    "amendment_url": "https://www.meity.gov.in/static/uploads/2026/10/daf495a7b5798a3dfa72a944b51fc176.pdf",
     "notification": "G.S.R. 843(E)",
     "source_url": "https://www.meity.gov.in/static/uploads/2025/11/c56ceae6c383460ca69577428d36828b.pdf",
     "whole_provisions": {

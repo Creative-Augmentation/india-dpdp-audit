@@ -24,6 +24,7 @@ PRIORITY = {"high": 0, "medium": 1, "low": 2, "informational": 3}
 EVIDENCE_STATUS_ORDER = {
     "observed_gap": 0, "not_verified": 1, "meets_sampled_check": 2, "not_applicable": 3,
 }
+MAX_DEFAULT_WINDOW_DAYS = 31
 AUDIT_TIMEZONE = timezone(timedelta(hours=5, minutes=30))
 COLLECTIONS = ("coverage", "evidence", "data_map", "legal_ledger", "findings", "actions")
 EVIDENCE_MODES = {
@@ -98,6 +99,8 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
     window_start = date.fromisoformat(scope.get("audit_window_start", record["audit_date"]))
     if window_start > audit_date:
         errors.append("scope.audit_window_start is after the audit date")
+    if (audit_date - window_start).days + 1 > MAX_DEFAULT_WINDOW_DAYS and "audit_window_reason" not in scope:
+        errors.append(f"scope.audit_window_reason is required for an audit window longer than {MAX_DEFAULT_WINDOW_DAYS} days")
     modes = set(scope["modes"])
     domains = set(scope["authorized_domains"])
     repositories = {
@@ -195,6 +198,8 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
         latest_commencement = effective or effective_by
         if entry["status"] == "current" and (latest_commencement is None or latest_commencement > audit_date):
             errors.append(f"{identifier}: current duty requires an effective date or latest commencement on or before the audit date")
+        if entry["status"] == "future" and latest_commencement is None and preparation is None:
+            errors.append(f"{identifier}: future duty requires effective_on, effective_by, or preparation_on")
         if entry["status"] == "future" and latest_commencement and latest_commencement <= audit_date:
             errors.append(f"{identifier}: future duty has an effective date or latest commencement on or before the audit date")
         if entry["status"] == "future" and preparation and audit_date > preparation and verified <= preparation:
@@ -276,21 +281,46 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
     return errors
 
 
+AUTOLINK_TOKEN = re.compile(r"@|://|www\.|mailto:|xmpp:", re.IGNORECASE)
+BACKTICKS = re.compile(r"`+")
+
+
+def literal_token(token):
+    if AUTOLINK_TOKEN.search(token):
+        # Entities and backslash escapes alone do not inhibit GFM autolinks.
+        longest = max((len(run) for run in BACKTICKS.findall(token)), default=0)
+        fence = "`" * (longest + 1)
+        return f"{fence} {token} {fence}"
+    return "".join(
+        f"&#{ord(char)};" if char in r'&<>"\`*_{}[]|~$#' else char
+        for char in token
+    )
+
+
 def markdown(text):
     """Keep data in literal text, including under Markdown extensions."""
-    text = " ".join("".join(
+    sanitized = "".join(
         char for char in str(text)
         if char in {"\u200c", "\u200d"} or category(char) not in {"Cc", "Cf", "Cs"}
         or char in {"\t", "\n", "\r"}
-    ).split())
-    escaped = "".join(
-        f"&#{ord(char)};" if char in r'&<>"\`*_{}[]|~$#' else char
-        for char in text
     )
-    # GFM can autolink bare URLs and email addresses.
-    return re.sub(r"(?i)https?://|www\.|@", lambda match: match[0].translate({
-        ord(":"): "&#58;", ord("."): "&#46;", ord("@"): "&#64;",
-    }), escaped)
+    return " ".join(literal_token(token) for token in sanitized.split())
+
+
+def oldest_linked_evidence_date(record):
+    entries = [item for collection in ("coverage", "data_map", "findings") for item in record[collection]]
+    entries.extend(claim for flow in record["data_map"] for claim in flow["owner_claims"])
+    linked = {identifier for item in entries for identifier in item["evidence_ids"]}
+    linked.update(
+        identifier for action in record["actions"] for identifier in action["verification_evidence_ids"]
+    )
+    return min(
+        (
+            capture_time(item).astimezone(AUDIT_TIMEZONE).date()
+            for item in record["evidence"] if item["id"] in linked
+        ),
+        default=None,
+    )
 
 
 def render_summary(record, findings):
@@ -353,14 +383,26 @@ def render_summary(record, findings):
     preview(missed, lambda item: f"{excerpt(item['name'])} ({item['status'].replace('_', ' ')})", 2)
 
     successes = groups["meets_sampled_check"]
-    lines.extend(("", f"**Sampled successes** · {len(successes)} recorded checks."))
+    check_label = "check" if len(successes) == 1 else "checks"
+    lines.extend(("", f"**Sampled successes** · {len(successes)} recorded {check_label}."))
     preview(successes, lambda item: excerpt(item["title"]), 2)
 
-    modes = ", ".join(record["scope"]["modes"])
+    scope = record["scope"]
+    modes = ", ".join(scope["modes"])
+    audit_date = date.fromisoformat(record["audit_date"])
+    window_start = date.fromisoformat(scope.get("audit_window_start", record["audit_date"]))
+    oldest = oldest_linked_evidence_date(record)
     lines.extend((
         "",
         f"**Scope and coverage** · {modes}. Inspected {inspected_count} of {len(coverage)} recorded journeys "
         f"({len(blocked)} blocked, {len(uninspected)} uninspected).",
+        f"Audit window {window_start} through {audit_date} (India dates).",
+    ))
+    if oldest:
+        lines.append(f"Oldest linked evidence date {oldest}.")
+    if (audit_date - window_start).days + 1 > MAX_DEFAULT_WINDOW_DAYS:
+        lines.append(f"**Extended audit window** · {excerpt(scope['audit_window_reason'])}")
+    lines.extend((
         "These results describe the recorded sample only. Overall compliance remains undetermined.",
         "",
         "**Next actions**",
@@ -427,6 +469,8 @@ def render(record):
     values("Platforms", scope["platforms"])
     if "audit_window_start" in scope:
         field("Audit window start", scope["audit_window_start"])
+    if "audit_window_reason" in scope:
+        field("Audit window reason", scope["audit_window_reason"])
     values("Authorized repositories", [
         item["locator"] + " @ " + item["revision"]
         for item in scope.get("authorized_repositories", [])
@@ -498,7 +542,7 @@ def render(record):
             field("Preparation date", source["preparation_on"])
         field("Status at audit date", source["status"])
         field("Notes", source["notes"])
-        for warning in legal_phases.entry_warnings(source):
+        for warning in legal_phases.entry_warnings(source, record["audit_date"]):
             field("Legal phase review", warning)
 
     heading("Evidence register", record["evidence"])
@@ -537,16 +581,23 @@ def changed_fields(before, after):
     )
 
 
+def evidence_fingerprint(item):
+    return item["kind"], item["locator"], " ".join(item["observation"].split())
+
+
 def closure_warnings(before, after):
     earlier_date = date.fromisoformat(before["audit_date"])
     earlier_ids = {evidence["id"] for evidence in before["evidence"]}
-    fresh_ids = {
-        evidence["id"] for evidence in after["evidence"]
+    earlier_fingerprints = {evidence_fingerprint(item) for item in before["evidence"]}
+    followup = [
+        evidence for evidence in after["evidence"]
         if evidence["id"] not in earlier_ids
         and evidence["status"] == "direct"
         and evidence["kind"] != "owner_statement"
         and capture_time(evidence).astimezone(AUDIT_TIMEZONE).date() > earlier_date
-    }
+    ]
+    fresh_ids = {item["id"] for item in followup if evidence_fingerprint(item) not in earlier_fingerprints}
+    copied_ids = {item["id"] for item in followup} - fresh_ids
     later_findings = {finding["id"]: finding for finding in after["findings"]}
     warnings = []
     for finding in sorted(before["findings"], key=lambda item: item["id"]):
@@ -556,8 +607,18 @@ def closure_warnings(before, after):
         later = later_findings.get(identifier)
         if later is None:
             warnings.append(f"{identifier}: removed finding has no linked follow-up evidence to establish closure.")
-        elif later["evidence_status"] in {"meets_sampled_check", "not_applicable"} and not fresh_ids.intersection(later["evidence_ids"]):
-            warnings.append(f"{identifier}: status changed without new linked direct evidence captured after the earlier audit date.")
+        elif later["evidence_status"] in {"meets_sampled_check", "not_applicable"}:
+            linked = set(later["evidence_ids"])
+            if not fresh_ids.intersection(linked):
+                if copied_ids.intersection(linked):
+                    warnings.append(
+                        f"{identifier}: linked follow-up evidence repeats an earlier kind, locator and observation "
+                        "under a new ID and timestamp. Review fresh evidence before treating the finding as closed."
+                    )
+                else:
+                    warnings.append(
+                        f"{identifier}: status changed without new linked direct evidence captured after the earlier audit date."
+                    )
     return warnings
 
 

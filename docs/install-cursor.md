@@ -41,3 +41,7 @@ Not needed if the steps above work. **Untested workaround:** keep the entire ski
 ## Verification limits
 
 Runtime discovery and relative-reference loading in Cursor have not been tested for this release. After copying, check that the skill appears in Agent chat and its references can be read. A restart, window reload or version-specific setting may be needed; consult the current Cursor documentation if discovery fails. The rules workaround above remains untested.
+
+## Auditing a repository safely
+
+Launch the agent from a separate trusted workspace. Inspect a read-only copy of the target outside the agent's project root; decline folder trust and do not enable the target's hooks, project settings or MCP servers. Do not start the agent inside the repository being audited. The skill cannot prevent host configuration that executes before it is loaded.

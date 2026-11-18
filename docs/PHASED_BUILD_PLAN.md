@@ -38,6 +38,6 @@ Customer audits require the owner's authority over the target and the allowed in
 
 ## Present limitations and next handoff
 
-The foundation has no automated collector. The [benchmark packets](benchmark-coverage.md) are synthetic; the hidden set and model-run results remain pending. Local tests and the [CI template](../ci/README.md) are separate evidence. Hosted CI still needs a maintainer with workflow permission. The CTO is arranging the managed Opus route.
+The foundation has no automated collector. The [benchmark packets](benchmark-coverage.md) are synthetic; an independent Opus author has frozen eight private cases, while candidate runs and judged results remain pending. Local tests and the [CI template](../ci/README.md) are separate evidence. Hosted CI still needs a maintainer with workflow permission. Opus has reviewed earlier heads; changes after those reviews require follow-up review of the actual new head.
 
 Close Phase 0 only after its independent review and CI gates pass. Close Phase 1 only after independent hidden-case preparation and actual baseline runs are recorded. Until then, describe this work as implemented scaffolding with pending validation, and keep PR #1 draft.

@@ -93,10 +93,115 @@ class LegalPhaseTests(unittest.TestCase):
                        ))
         self.assertIn("cannot be current", legal.check_entry(e, "2026-10-27")[0])
 
-    def test_other_instruments_keep_existing_validation(self):
-        e = self.entry("Rule 3", instrument="Unrelated Law")
-        self.assertEqual(legal.entry_warnings(e), [])
+    def test_act_aliases_cannot_bypass_known_act_phases(self):
+        for instrument in (
+            "DPDPA2023",
+            "Act No.22 of2023",
+            "Data Protection Act2023",
+            "डिजिटल वैयक्तिक डेटा संरक्षण अधिनियम, २०२३",
+        ):
+            with self.subTest(instrument=instrument):
+                e = self.entry("Section 5", instrument=instrument, effective_on="2025-11-13")
+                self.assertIn("contradicts pinned", legal.check_entry(e, "2026-10-27")[0])
+        e = self.entry("धारा ५", instrument="डिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम, 2023")
+        self.assertIn("cannot be current", legal.check_entry(e, "2026-10-27")[0])
+
+    def test_rules_of_act_and_hindi_rules_are_classified_as_rules(self):
+        for instrument, provision in (
+            ("Rules of the Digital Personal Data Protection Act, 2023", "Rules 1 and 3"),
+            ("डिजिटल वैयक्तिक डेटा संरक्षण नियमावली, २०२५", "नियम १ और ३"),
+            ("DPDPR2025", "Rules 1 and 3"),
+            ("डिजिटल व्यक्तिगत डाटा संरक्षण नियमावली, 2025", "नियम १ और ३"),
+        ):
+            with self.subTest(instrument=instrument):
+                e = self.entry(provision, instrument=instrument)
+                self.assertIn("spans multiple", legal.check_entry(e, "2026-10-27")[0])
+
+    def test_source_aliases_cover_operative_baseline_documents(self):
+        baseline = MODULE.parents[1] / "references/legal-baseline.md"
+        source_urls = {
+            link.split("](", 1)[0]: link.split("](", 1)[1].split(")", 1)[0]
+            for line in baseline.read_text(encoding="utf-8").splitlines()
+            for link in line.split("[")[1:]
+            if "](https://" in link
+        }
+        for title, provision in (
+            ("DPDP Act 2023, official copy", "Section 5"),
+            ("G.S.R. 843(E), commencement", "Section 5"),
+            ("Final DPDP Rules 2025, G.S.R. 846(E)", "Rule 3"),
+            ("G.S.R. 892(E), corrigenda", "Rule 3"),
+            ("Official S.O. 5458(E)", "Section 9(1)"),
+        ):
+            source_url = source_urls[title] + "?test=1#page=1"
+            with self.subTest(title=title):
+                e = self.entry(provision, instrument="Government publication", source_url=source_url)
+                self.assertIn("cannot be current", legal.check_entry(e, "2026-10-27")[0])
+        for title in ("PIB, 16 May 2026", "January 2026 MeitY upload"):
+            e = self.entry("Rule 3", "uncertain", instrument="Government backgrounder",
+                           source_url=source_urls[title])
+            self.assertEqual(legal.check_entry(e, "2026-10-27"), [])
+            warning = legal.entry_warnings(e)[0]
+            self.assertNotIn("DPDP commencement", warning)
+
+    def test_dpdp_like_unknown_official_citation_requires_uncertainty(self):
+        e = self.entry(
+            "not a canonical provision", instrument="Government publication",
+            source_url="https://www.meity.gov.in/dpdp-related-unknown-document",
+        )
+        self.assertIn("unmapped", legal.check_entry(e, "2026-10-27")[0])
+        e["status"] = "uncertain"
         self.assertEqual(legal.check_entry(e, "2026-10-27"), [])
+        self.assertIn("unmapped", legal.entry_warnings(e)[0])
+
+    def test_mapped_post_latest_uncertainty_requires_explanation_and_warns(self):
+        e = self.entry("Rule 3", "uncertain", notes="Pending verification")
+        self.assertIn("notes explaining", legal.check_entry(e, "2027-05-14")[0])
+        e["notes"] = "The relevant Gazette notification remains inaccessible for this assessment."
+        self.assertEqual(legal.check_entry(e, "2027-05-14"), [])
+        self.assertIn("after the pinned latest", legal.entry_warnings(e, "2027-05-14")[0])
+        self.assertEqual(legal.entry_warnings(e, "2027-05-13"), [])
+
+    def test_opaque_official_source_requires_explicit_instrument(self):
+        for host in ("www.meity.gov.in", "egazette.gov.in", "egazette.nic.in", "www.indiacode.nic.in"):
+            e = self.entry("Section 5", instrument="Government publication",
+                           source_url=f"https://{host}/opaque-a97d9.pdf")
+            with self.subTest(host=host):
+                self.assertIn("Cannot identify the instrument", legal.check_entry(e, "2026-10-27")[0])
+                e["status"] = "uncertain"
+                self.assertEqual(legal.check_entry(e, "2026-10-27"), [])
+                self.assertIn("Cannot identify the instrument", legal.entry_warnings(e)[0])
+
+    def test_dpdp_source_and_alias_override_other_instrument_markers(self):
+        operative = (
+            "https://www.meity.gov.in/static/uploads/2024/06/2bf1f0e9f04e6fb4f8fef35e82c42aa5.pdf"
+        )
+        for instrument, source_url, provision in (
+            ("IT Act 2000", operative, "Section 5"),
+            ("SPDI Rules 2011; DPDPR2025", "https://www.meity.gov.in/opaque.pdf", "Rule 3"),
+        ):
+            e = self.entry(provision, instrument=instrument, source_url=source_url)
+            self.assertIn("cannot be current", legal.check_entry(e, "2026-10-27")[0])
+
+    def test_unknown_nonofficial_source_retains_generic_checks_with_warning(self):
+        e = self.entry("Section 5", instrument="Other law", source_url="https://law.example.test/act")
+        self.assertEqual(legal.check_entry(e, "2026-10-27"), [])
+        self.assertIn("authority is unverified", legal.entry_warnings(e)[0])
+
+    def test_other_instruments_keep_existing_validation(self):
+        for instrument, provision, source_url in (
+            ("SPDI Rules 2011, G.S.R. 313(E)", "Rule 4",
+             "https://emb.mes.gov.in/Common/help/gsr3_10511.pdf"),
+            ("SPDI Rules 2011", "Rule 4",
+             "https://www.meity.gov.in/writereaddata/files/GSR313E_10511%281%29_0.pdf"),
+            ("Information Technology Act, 2000", "Section 43A",
+             "https://www.meity.gov.in/static/uploads/other-act.pdf"),
+            ("CERT-In Directions 2022", "Direction (ii)", "https://www.cert-in.org.in/"),
+        ):
+            with self.subTest(instrument=instrument):
+                e = self.entry(provision, instrument=instrument, source_url=source_url,
+                               effective_on="2011-04-11")
+                self.assertEqual(legal.entry_warnings(e), [])
+                self.assertEqual(legal.check_entry(e, "2026-10-27"), [])
 
 
 if __name__ == "__main__":

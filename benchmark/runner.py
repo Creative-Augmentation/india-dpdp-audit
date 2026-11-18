@@ -7,8 +7,10 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from itertools import combinations
 import json
+import os
 import re
 from pathlib import Path, PurePosixPath
+from secrets import token_hex
 import stat
 from tempfile import TemporaryDirectory
 import sys
@@ -17,13 +19,13 @@ from time import perf_counter
 from jsonschema import Draft202012Validator, FormatChecker
 
 BENCHMARK = Path(__file__).resolve().parent
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 STACKS = ("shopify", "woocommerce", "firebase", "generic")
 JUDGMENTS = ("assessment_mapping", "expectations", "legal", "scope_restraint",
              "remediation", "collection")
 STAGES = {
     "collection": ("collection_", "independent_judgment_", "independent_collection_"),
-    "judgment": ("finding_", "critical_", "scope_", "sampled_", "false_",
+    "judgment": ("finding_", "critical_", "scope_", "sampled_", "false_", "raw_report_verdict_",
                  "independent_judgment_", "independent_assessment_mapping_",
                  "independent_expectations_", "independent_legal_", "independent_scope_restraint_"),
     "remediation": ("remediation_", "independent_judgment_", "independent_remediation_"),
@@ -95,7 +97,7 @@ def outside_checkout(path, root, description):
     resolved = path.resolve()
     for anchor in (BENCHMARK, root.resolve()):
         checkout = next((parent for parent in (anchor, *anchor.parents)
-                         if (parent / ".git").exists()), anchor)
+                         if (parent / ".git").exists()), anchor.parent)
         require(not resolved.is_relative_to(checkout),
                 f"{description} must be outside the builder checkout: {path}")
 
@@ -223,23 +225,31 @@ def load_cases(root, held_out):
     return cases, pending, manifest_hash
 
 
-def export_inputs(root, held_out, output, case_ids):
+def export_inputs(root, held_out, output, alias_map, case_ids):
     """Write a blind packet with neutral metadata and only declared input artifacts."""
     output = output.resolve()
     outside_checkout(output, root, "Blind export")
     require(not output.exists(), f"Blind export destination already exists: {output}")
     require(output.parent.is_dir(), f"Blind export parent directory does not exist: {output.parent}")
+    alias_map = alias_map.resolve()
+    outside_checkout(alias_map, root, "Blind export alias map")
+    require(not alias_map.is_relative_to(output), "Alias map must be outside the candidate packet")
+    require(alias_map.parent.is_dir(), f"Alias map parent directory does not exist: {alias_map.parent}")
+    require(not alias_map.exists(), f"Alias map destination already exists: {alias_map}")
     cases, _, _ = load_cases(root, held_out)
     require(case_ids and len(set(case_ids)) == len(case_ids), "Supply unique case IDs for export")
     require(set(case_ids) <= cases.keys(), "Blind export contains unknown or unavailable case IDs")
+    aliases = {"packet-" + token_hex(16): case_id for case_id in case_ids}
+    require(len(aliases) == len(case_ids), "Blind export alias collision. Retry the export.")
     with TemporaryDirectory(dir=output.parent) as tmp:
         packet = Path(tmp) / "packet"
         packet.mkdir(mode=0o700)
-        for case_id in case_ids:
+        for alias, case_id in aliases.items():
             case = cases[case_id]
-            destination = packet / case_id
+            destination = packet / alias
             destination.mkdir()
-            metadata = {key: case[key] for key in ("id", "stack", "mode", "audit_date", "scope")}
+            metadata = {key: case[key] for key in ("stack", "mode", "audit_date", "scope")}
+            metadata["id"] = alias
             metadata["artifacts"] = dict(case["artifact_sha256"])
             (destination / "brief.json").write_text(
                 json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -251,7 +261,15 @@ def export_inputs(root, held_out, output, case_ids):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(raw)
         require(not output.exists(), f"Blind export destination already exists: {output}")
-        packet.rename(output)
+        mapping = json.dumps({"schema_version": 1, "aliases": aliases}, indent=2) + "\n"
+        fd = os.open(alias_map, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(mapping)
+            packet.rename(output)
+        except BaseException:
+            alias_map.unlink()
+            raise
 
 
 def load_judges(path, pinned_hash, root):
@@ -265,7 +283,8 @@ def load_judges(path, pinned_hash, root):
     validate("judge_ledger", ledger, path)
     records = index_unique(ledger["records"], lambda row: (row["run_id"], row["case_id"]),
                            "judge ledger run and case ID")
-    return records, {"sha256": actual_hash, **ledger["verification"]}
+    return records, {"sha256": actual_hash, "identity_verified_by_runner": False,
+                     **ledger["verification"]}
 
 
 def check_collection(path, collection, metadata):
@@ -387,7 +406,12 @@ def score_case(case, result, result_hash, judge):
     unknowns = score_labels(expected["unknowns"], assessment["unknowns"])
     samples = score_labels(expected["sampled_checks"], assessment["sampled_checks"])
     critical_misses = sorted(set(expected["seeded_criticals"]) & set(findings["missed_known_gaps"]))
-    false_all_clear = assessment["verdict"] == "all_clear" and bool(
+    raw_verdict = judge["raw_report_verdict"] if judge else None
+    raw_confirmed = judge["raw_report_verdict_confirmed"] if judge else None
+    reports_all_clear = assessment["verdict"] == "all_clear" or (
+        raw_confirmed is True and raw_verdict == "all_clear"
+    )
+    false_all_clear = reports_all_clear and bool(
         expected["findings"] or expected["unknowns"] or samples["missing"]
         or collection["status"] != "captured"
     )
@@ -411,6 +435,7 @@ def score_case(case, result, result_hash, judge):
     if plan_coverage["missing"]:
         blockers.append("remediation_coverage_incomplete")
 
+    mapping_status = "provisional"
     if judge is None:
         blockers.append("independent_judgment_pending")
     else:
@@ -420,6 +445,14 @@ def score_case(case, result, result_hash, judge):
                 f'{case["id"]}: independent judgment is bound to different input or result bytes')
         require(judge["collection"]["status"] != "pass" or collection["status"] == "captured",
                 f'{case["id"]}: collection review cannot pass without capture evidence')
+        mapping_status = judge["assessment_mapping"]["status"]
+        if not raw_confirmed:
+            blockers.append("raw_report_verdict_unconfirmed")
+            if mapping_status == "pass":
+                mapping_status = "blocked"
+        elif raw_verdict != assessment["verdict"]:
+            blockers.append("raw_report_verdict_mismatch")
+            mapping_status = "fail"
         for dimension in JUDGMENTS:
             if judge[dimension]["status"] != "pass":
                 blockers.append(f'independent_{dimension}_{judge[dimension]["status"]}')
@@ -434,6 +467,8 @@ def score_case(case, result, result_hash, judge):
         "collection": collection,
         "assessment": {
             "verdict": assessment["verdict"], "findings": findings,
+            "raw_report_verdict": raw_verdict,
+            "raw_report_verdict_confirmed": raw_confirmed,
             "scope_unknowns": unknowns, "sampled_checks": samples,
             "critical_misses": critical_misses, "false_all_clear": false_all_clear,
         },
@@ -443,9 +478,7 @@ def score_case(case, result, result_hash, judge):
             else "complete_for_case"
             for stage, prefixes in STAGES.items()
         },
-        "assessment_mapping_status": (
-            judge["assessment_mapping"]["status"] if judge else "provisional"
-        ),
+        "assessment_mapping_status": mapping_status,
         "independent_judgment": judge,
     }
 
@@ -622,6 +655,8 @@ def human_summary(summary):
         f'Native collection: {summary["native_collection_status"].replace("_", " ")}.',
         f'Independent judgment: {summary["independent_judgment_status"].replace("_", " ")}.',
     ]
+    if summary["judge_ledger_verification_record"] is not None:
+        lines.append("Judge ledger supplied, identity not verified by runner.")
     for run_id, record in summary["runs"].items():
         metrics = record["metrics"]
         findings = metrics["findings"]
@@ -656,6 +691,8 @@ def main(argv=None):
     parser.add_argument("--results", type=Path, action="append", default=[])
     parser.add_argument("--export-inputs", type=Path,
                         help="write a blind packet at a new location outside the checkout")
+    parser.add_argument("--export-alias-map", type=Path,
+                        help="write the private alias map outside the checkout and packet")
     parser.add_argument("--case-id", action="append", default=[], help="case to include in blind export")
     parser.add_argument("--judge-ledger", type=Path)
     parser.add_argument("--judge-ledger-sha256")
@@ -666,11 +703,13 @@ def main(argv=None):
         if args.export_inputs:
             require(not (args.results or args.judge_ledger or args.judge_ledger_sha256
                          or args.require_ready), "Blind export cannot be combined with scoring")
+            require(args.export_alias_map is not None, "--export-inputs requires --export-alias-map")
             export_inputs(args.benchmark_dir.resolve(), args.held_out, args.export_inputs,
-                          args.case_id)
+                          args.export_alias_map, args.case_id)
             print(f"Wrote blind inputs for {len(args.case_id)} case(s).", file=sys.stderr)
             return 0
-        require(not args.case_id, "--case-id requires --export-inputs")
+        require(not args.case_id and args.export_alias_map is None,
+                "--case-id and --export-alias-map require --export-inputs")
         summary = run(args)
     except (ValueError, OSError) as exc:
         parser.exit(2, f"Invalid benchmark input: {exc}\n")

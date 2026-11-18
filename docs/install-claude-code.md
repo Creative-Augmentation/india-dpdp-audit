@@ -36,3 +36,7 @@ Per the docs, changes under `~/.claude/skills/` or `.claude/skills/` are picked 
 ## Verification limits
 
 These paths were checked against the documentation on the recorded date. Runtime discovery, including a newly created top-level skills folder, has not been tested for this release. Restart Claude Code if the skill does not appear. Enterprise paths and other installation modes are outside this guide's verified scope.
+
+## Auditing a repository safely
+
+Launch the agent from a separate trusted workspace. Inspect a read-only copy of the target outside the agent's project root; decline folder trust and do not enable the target's hooks, project settings or MCP servers. Do not start the agent inside the repository being audited. The skill cannot prevent host configuration that executes before it is loaded.

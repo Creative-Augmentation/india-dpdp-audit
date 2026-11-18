@@ -67,6 +67,7 @@ A cookie, public Firebase client key, foreign host or missing public backend evi
 ## Development and evaluation
 
 ```sh
+.venv/bin/python -m pip install -r tests/requirements.txt
 .venv/bin/python -m unittest discover -s tests -v
 ```
 

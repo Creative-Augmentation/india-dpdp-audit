@@ -674,6 +674,8 @@
               "scope_restraint",
               "remediation",
               "raw_report_sha256",
+              "raw_report_verdict_confirmed",
+              "raw_report_verdict",
               "assessment_mapping",
               "expectations",
               "collection"
@@ -727,6 +729,16 @@
               "raw_report_sha256": {
                 "type": "string",
                 "pattern": "^[0-9a-f]{64}$"
+              },
+              "raw_report_verdict_confirmed": {
+                "type": "boolean"
+              },
+              "raw_report_verdict": {
+                "enum": [
+                  "all_clear",
+                  "findings",
+                  "inconclusive"
+                ]
               },
               "assessment_mapping": {
                 "$ref": "#/$defs/judgment"

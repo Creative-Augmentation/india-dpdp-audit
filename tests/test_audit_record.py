@@ -8,6 +8,11 @@ from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
 
+try:
+    from cmarkgfm import github_flavored_markdown_to_html
+except ImportError as error:
+    raise ImportError("Install the renderer test dependency with pip install -r tests/requirements.txt") from error
+
 SKILL = Path(__file__).resolve().parents[1] / "skills" / "india-dpdp-audit"
 CLI = SKILL / "scripts" / "audit.py"
 EXAMPLE = SKILL / "assets" / "example-audit.json"
@@ -97,6 +102,12 @@ class AuditRecordTests(unittest.TestCase):
         self.record["audit_date"] = "2027-05-15"
         self.assertInvalid("L-notice: DPDP provision cannot be future")
 
+    def test_future_duty_requires_a_commencement_or_preparation_date(self):
+        entry = self.record["legal_ledger"][0]
+        entry.pop("preparation_on")
+        self.assertIsNone(entry["effective_on"])
+        self.assertInvalid("future duty requires effective_on, effective_by, or preparation_on")
+
     def test_future_duty_requires_reverification_after_preparation_date(self):
         entry = self.record["legal_ledger"][0]
         entry.update(
@@ -165,6 +176,30 @@ class AuditRecordTests(unittest.TestCase):
                 self.assertEqual(audit.validate(self.record, self.validator), [])
         self.record["scope"]["audit_window_start"] = "2026-10-28"
         self.assertInvalid("scope.audit_window_start is after the audit date")
+
+    def test_default_window_limit_and_extended_reason(self):
+        self.record["scope"]["audit_window_start"] = "2026-09-27"
+        self.assertEqual(audit.validate(self.record, self.validator), [])
+        self.record["scope"]["audit_window_start"] = "2026-09-26"
+        self.assertInvalid("scope.audit_window_reason is required")
+        self.record["scope"]["audit_window_reason"] = "   "
+        self.assertInvalid("audit_window_reason")
+        self.record["scope"]["audit_window_reason"] = "Two scheduled rounds of evidence gathering"
+        self.assertIn("Audit window 2026-09-26 through 2026-10-27", self.summary())
+        self.assertIn("**Extended audit window** · Two scheduled rounds", self.summary())
+
+    def test_historical_gap_remains_visible_when_retesting_is_pending(self):
+        self.record["audit_date"] = "2027-04-27"
+        summary = self.summary()
+        self.assertIn("Audit window 2027-04-27 through 2027-04-27", summary)
+        self.assertIn("Oldest linked evidence date 2026-10-27", summary)
+        self.assertIn("Purpose of required phone collection", summary)
+        self.record["findings"][0]["evidence_status"] = "meets_sampled_check"
+        self.assertInvalid("meets_sampled_check requires evidence captured in the audit window")
+        self.record["scope"]["audit_window_start"] = "2026-10-27"
+        self.assertInvalid("scope.audit_window_reason is required")
+        self.record["scope"]["audit_window_reason"] = "Approved review of two storefront versions"
+        self.assertIn("**Extended audit window**", self.summary())
 
     def test_code_cannot_substitute_for_owner_claim(self):
         self.record["data_map"][0]["owner_claims"][0]["evidence_ids"] = ["E-handler"]
@@ -340,6 +375,7 @@ class AuditRecordTests(unittest.TestCase):
         self.record["actions"].clear()
         summary = self.summary()
         self.assertIn("Support form explains how support uses email", summary)
+        self.assertIn("**Sampled successes** · 1 recorded check.", summary)
         self.assertIn("Inspected 1 of 1 recorded journeys", summary)
         self.assertIn("Overall compliance remains undetermined", summary)
         self.record["summary"] = "Compliant"
@@ -365,7 +401,7 @@ class AuditRecordTests(unittest.TestCase):
         self.record["evidence"][0]["observation"] = payload
         self.assertEqual(audit.validate(self.record, self.validator), [])
         rendered = audit.render(self.record)
-        for raw in ("\n# Title", "\n- item", "[click](", "<img", "![x](", "&lt;b&gt;", "`code`", "\x1b"):
+        for raw in ("\n# Title", "\n- item", "[click](", "<img", "&lt;b&gt;", "`code`", "\x1b"):
             with self.subTest(raw=raw):
                 self.assertNotIn(raw, rendered)
         self.assertIn("&#60;img", rendered)
@@ -376,8 +412,26 @@ class AuditRecordTests(unittest.TestCase):
         text = "गोपनीयता, क्\u200dष क्\u200cष (सूचना)।"
         self.assertEqual(audit.markdown(text), text)
         self.assertEqual(audit.markdown("safe\u202e\u2067\x00\x85field"), "safefield")
-        self.assertIn("https&#58;//example.test", audit.markdown("https://example.test"))
-        self.assertIn("name&#64;example.test", audit.markdown("name@example.test"))
+
+
+    def test_gfm_keeps_links_and_raw_markup_inert_throughout_report(self):
+        payload = (
+            "गोपनीयता क्\u200dष क्\u200cष merchant@example.test mailto:merchant@example.test "
+            "xmpp:merchant@example.test ftp://example.test www.example.test https://example.test "
+            "https://example.test/```![x](https://example.test) <a href='https://example.test'>test</a> "
+            "[click](https://example.test) <img src=x onerror=x>"
+        )
+        self.record["findings"][0]["title"] = payload
+        self.record["evidence"][0]["observation"] = payload
+        self.record["scope"]["subject"] = payload
+        rendered = github_flavored_markdown_to_html(audit.render(self.record))
+        for markup in ("<a ", "<img ", "<script", "<pre>", "<!-- raw HTML omitted -->"):
+            with self.subTest(markup=markup):
+                self.assertNotIn(markup, rendered)
+        self.assertIn("गोपनीयता क्\u200dष क्\u200cष", rendered)
+        for literal in ("merchant@example.test", "mailto:merchant@example.test",
+                        "xmpp:merchant@example.test", "ftp://example.test"):
+            self.assertIn(f"<code>{literal}</code>", rendered)
 
     def test_diff_warns_when_scope_changes_and_ignores_reference_order(self):
         before = deepcopy(self.record)
@@ -402,6 +456,9 @@ class AuditRecordTests(unittest.TestCase):
         self.assertIn("closure_warnings", audit.diff(before, self.record))
         finding["evidence_ids"] = ["E-recheck"]
         self.assertEqual(audit.validate(self.record, self.validator), [])
+        warnings = audit.diff(before, self.record)["closure_warnings"]
+        self.assertIn("repeats an earlier kind, locator and observation", warnings[0])
+        fresh["observation"] = "The follow-up form explains the optional phone collection."
         self.assertNotIn("closure_warnings", audit.diff(before, self.record))
 
     def test_diff_validates_both_inputs_and_reports_changes_by_id(self):

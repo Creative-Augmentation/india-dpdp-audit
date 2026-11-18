@@ -28,9 +28,11 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["subject", "authorized_domains", "modes", "platforms", "limitations"],
+      "dependentRequired": {"audit_window_reason": ["audit_window_start"]},
       "properties": {
         "subject": {"$ref": "#/$defs/text"},
         "audit_window_start": {"type": "string", "format": "date"},
+        "audit_window_reason": {"$ref": "#/$defs/text"},
         "authorized_domains": {"type": "array", "items": {"$ref": "#/$defs/domain"}, "uniqueItems": true},
         "modes": {
           "type": "array",
