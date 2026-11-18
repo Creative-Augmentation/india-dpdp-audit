@@ -1,0 +1,20 @@
+{
+  "provenance": "Invented authorized-stage result input. No test was executed.",
+  "environment": "isolated emulator and stubbed server",
+  "client_firestore": {
+    "owner_read": "allowed",
+    "anonymous_read": "denied",
+    "cross_user_read": "denied"
+  },
+  "client_storage": {
+    "owner_read": "allowed",
+    "anonymous_read": "denied",
+    "cross_user_read": "denied"
+  },
+  "server_handler": {
+    "owner_read": "allowed",
+    "missing_session": "denied",
+    "cross_user_read": "denied"
+  },
+  "deployed_iam": "not_provided"
+}

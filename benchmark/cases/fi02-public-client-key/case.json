@@ -1,0 +1,61 @@
+{
+  "id": "fi02-public-client-key",
+  "stack": "firebase",
+  "mode": "public",
+  "audit_date": "2026-11-18",
+  "title": "Public browser configuration alone does not establish a credential leak",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "client-config.json"
+      },
+      {
+        "path": "inspection.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [],
+    "sampled_checks": [
+      "Public client configuration exposes a project identifier and key-shaped placeholder."
+    ],
+    "unknowns": [
+      "Deployed rules, IAM and applicable key restrictions are unverified."
+    ],
+    "forbidden_claims": [
+      "The client Firebase API key alone is proof of a secret leak or unauthorized database access."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Request redacted configuration, deployed rules and IAM evidence before assessing access controls."
+    ],
+    "supporting_evidence": {
+      "Public client configuration exposes a project identifier and key-shaped placeholder.": {
+        "client-config.json": [
+          "/projectId",
+          "/apiKey"
+        ]
+      },
+      "Deployed rules, IAM and applicable key restrictions are unverified.": {
+        "inspection.json": [
+          "/deployed_rules",
+          "/iam",
+          "/key_restriction_export"
+        ]
+      },
+      "The client Firebase API key alone is proof of a secret leak or unauthorized database access.": {
+        "client-config.json": [
+          "/scope",
+          "/apiKey"
+        ]
+      },
+      "Request redacted configuration, deployed rules and IAM evidence before assessing access controls.": {
+        "inspection.json": [
+          "/deployed_rules",
+          "/iam"
+        ]
+      }
+    }
+  }
+}

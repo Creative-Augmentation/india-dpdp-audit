@@ -1,0 +1,58 @@
+{
+  "id": "ge05-phase-ledger",
+  "stack": "generic",
+  "mode": "repository",
+  "audit_date": "2026-11-18",
+  "title": "Draft tracking labels confuse current and future obligations",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "scope.json"
+      },
+      {
+        "path": "draft-notes.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [],
+    "sampled_checks": [
+      "The supplied ordinary operator scope gives no evidence of Consent Manager activity."
+    ],
+    "unknowns": [
+      "Actual notice and withdrawal controls and SPDI applicability are unverified."
+    ],
+    "forbidden_claims": [
+      "The draft labels establish a current violation for the later-phase notice or withdrawal duties, show Rule 4 is still future on 18 November 2026 or remove the need to assess SPDI separately."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Reverify referenced official instruments and amendments, record Rule 4 as commenced and conditional, and distinguish later-phase sections and Rule 3 from separately assessed present obligations. Record uncertainty if reporting precise dates."
+    ],
+    "supporting_evidence": {
+      "The supplied ordinary operator scope gives no evidence of Consent Manager activity.": {
+        "scope.json": [
+          "/organization_role"
+        ]
+      },
+      "Actual notice and withdrawal controls and SPDI applicability are unverified.": {
+        "draft-notes.json": [
+          "/site_control_observations"
+        ]
+      },
+      "The draft labels establish a current violation for the later-phase notice or withdrawal duties, show Rule 4 is still future on 18 November 2026 or remove the need to assess SPDI separately.": {
+        "draft-notes.json": [
+          "/assertions_to_review",
+          "/instrument_refs"
+        ]
+      },
+      "Reverify referenced official instruments and amendments, record Rule 4 as commenced and conditional, and distinguish later-phase sections and Rule 3 from separately assessed present obligations. Record uncertainty if reporting precise dates.": {
+        "draft-notes.json": [
+          "/instrument_refs",
+          "/assertions_to_review"
+        ]
+      }
+    }
+  }
+}

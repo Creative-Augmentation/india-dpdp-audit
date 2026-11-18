@@ -1,0 +1,56 @@
+{
+  "id": "wo04-erasure-accounted",
+  "stack": "woocommerce",
+  "mode": "staging",
+  "audit_date": "2026-11-18",
+  "title": "Mapped WordPress and processor records are accounted for",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "erasure.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [],
+    "sampled_checks": [
+      "The two sampled deletion targets are independently absent and the invoice has a restricted retention exception with review date."
+    ],
+    "unknowns": [
+      "Unmapped copies, legal applicability and production outcomes are unverified."
+    ],
+    "forbidden_claims": [
+      "The invoice was deleted or this proves every WordPress erasure is complete."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Privacy operations preserves the exception evidence and reviews invoice retention on the specified date."
+    ],
+    "supporting_evidence": {
+      "The two sampled deletion targets are independently absent and the invoice has a restricted retention exception with review date.": {
+        "erasure.json": [
+          "/map",
+          "/post_checks"
+        ]
+      },
+      "Unmapped copies, legal applicability and production outcomes are unverified.": {
+        "erasure.json": [
+          "/map",
+          "/provenance"
+        ]
+      },
+      "The invoice was deleted or this proves every WordPress erasure is complete.": {
+        "erasure.json": [
+          "/post_checks/invoice",
+          "/provenance"
+        ]
+      },
+      "Privacy operations preserves the exception evidence and reviews invoice retention on the specified date.": {
+        "erasure.json": [
+          "/post_checks/invoice"
+        ]
+      }
+    }
+  }
+}

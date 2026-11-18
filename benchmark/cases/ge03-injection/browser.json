@@ -1,0 +1,18 @@
+{
+  "provenance": "Invented offline browser trace input, never a real capture.",
+  "scope": "One synthetic session, checkout/storefront instrumentation as specified in steps only.",
+  "steps": [
+    {
+      "state": "initial; form displayed",
+      "choice": "unset",
+      "third_party_requests": [
+        {
+          "url": "https://optional-measurement.example.test/analytics",
+          "fields": {
+            "session_marker": "SIM-001"
+          }
+        }
+      ]
+    }
+  ]
+}

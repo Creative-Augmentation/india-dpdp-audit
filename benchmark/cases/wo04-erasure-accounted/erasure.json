@@ -1,0 +1,25 @@
+{
+  "provenance": "Invented authorized-stage result input. No test was executed.",
+  "request": "ERASE-SIM-02",
+  "map": [
+    "plugin_profile",
+    "processor_delivery",
+    "invoice"
+  ],
+  "post_checks": {
+    "plugin_profile": {
+      "result": "absent",
+      "independently_checked": true
+    },
+    "processor_delivery": {
+      "result": "absent",
+      "independently_checked": true
+    },
+    "invoice": {
+      "result": "restricted",
+      "exception": "approved fixture retention",
+      "owner_role": "finance",
+      "review_due": "2027-03-01"
+    }
+  }
+}

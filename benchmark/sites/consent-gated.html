@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Gated consent fixture</title>
+<script defer src="/assets/consent.js"></script>
+<main data-consent-fixture="gated">
+  <h1>Gated consent fixture</h1>
+  <p>Optional measurement should run only after acceptance.</p>
+  <button type="button" data-choice="granted">Accept optional measurement</button>
+  <button type="button" data-choice="denied">Reject optional measurement</button>
+  <button type="button" data-choice="denied">Withdraw permission</button>
+  <button type="button" data-choice="reset">Reset this fixture</button>
+  <p>Current choice: <output aria-live="polite" id="choice"></output></p>
+  <a href="/">Fixture index</a>
+</main>
+</html>

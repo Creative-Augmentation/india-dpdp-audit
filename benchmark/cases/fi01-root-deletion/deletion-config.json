@@ -1,0 +1,9 @@
+{
+  "scope": "invented extension export",
+  "delete_mode": "shallow",
+  "firestore_paths": [
+    "users/{UID}"
+  ],
+  "storage_paths": [],
+  "crm_dispatch": null
+}

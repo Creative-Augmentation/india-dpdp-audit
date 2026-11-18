@@ -32,8 +32,6 @@ cp -r /path/to/this/repo/skills/india-dpdp-audit .agents/skills/
 
 In Codex CLI run `/skills`, or type `$` and pick `india-dpdp-audit`. Codex may also select it from the description. Per the docs, Codex detects skill changes automatically; if the skill does not appear, restart Codex.
 
-## UNVERIFIED
+## Verification limits
 
-- Codex also has an `AGENTS.md` instruction mechanism (documented under "Agent configuration"). I did not read that page and this guide does not use it.
-- The docs mention a `$skill-installer` for curated skills only; there is no documented command to install from this repository, so the copy steps above are the method.
-- I did not run Codex to confirm the skill is listed. After copying, run `/skills` and check.
+The paths above were checked against documentation on the recorded date. Runtime discovery in Codex has not been tested for this release; confirm the skill appears after copying. This guide uses folder copying and does not assess alternative installers or `AGENTS.md` configuration. Consult the current official documentation for those mechanisms.

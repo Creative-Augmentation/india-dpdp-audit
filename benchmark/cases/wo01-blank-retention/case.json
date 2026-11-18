@@ -1,0 +1,77 @@
+{
+  "id": "wo01-blank-retention",
+  "stack": "woocommerce",
+  "mode": "repository_and_staging",
+  "audit_date": "2026-11-18",
+  "title": "Blank failed-order period leaves records beyond approved schedule",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "settings.json"
+      },
+      {
+        "path": "cleanup.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [
+      {
+        "id": "WOO-01-01",
+        "severity": "medium",
+        "observation": "Failed-order retention is blank and the sampled 21-day failed order remains active without a hold despite an approved 14-day schedule.",
+        "evidence_refs": [
+          "settings.json",
+          "cleanup.json"
+        ],
+        "evidence_locations": {
+          "settings.json": [
+            "/failed_orders_days",
+            "/approved_schedule_days/failed_orders"
+          ],
+          "cleanup.json": [
+            "/samples/failed"
+          ]
+        },
+        "classification": "Observed technical gap. Legal applicability and phase require separate assessment."
+      }
+    ],
+    "sampled_checks": [
+      "The sample records pending-order trashing and completed-order anonymization as distinct outcomes."
+    ],
+    "unknowns": [
+      "Trash expiry and backup retention are unverified."
+    ],
+    "forbidden_claims": [
+      "The cleanup job permanently deleted every old order."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Store owner sets the approved failed-order period and verifies the next synthetic cleanup outcome and downstream expiry separately."
+    ],
+    "supporting_evidence": {
+      "The sample records pending-order trashing and completed-order anonymization as distinct outcomes.": {
+        "cleanup.json": [
+          "/samples/pending/outcome",
+          "/samples/completed/outcome"
+        ]
+      },
+      "Trash expiry and backup retention are unverified.": {
+        "cleanup.json": [
+          "/samples"
+        ]
+      },
+      "The cleanup job permanently deleted every old order.": {
+        "cleanup.json": [
+          "/samples"
+        ]
+      },
+      "Store owner sets the approved failed-order period and verifies the next synthetic cleanup outcome and downstream expiry separately.": {
+        "settings.json": [
+          "/approved_schedule_days/failed_orders"
+        ]
+      }
+    }
+  }
+}

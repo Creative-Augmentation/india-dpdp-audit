@@ -1,0 +1,59 @@
+{
+  "id": "fi05-staged-deletion",
+  "stack": "firebase",
+  "mode": "staging",
+  "audit_date": "2026-11-18",
+  "title": "Synthetic recursive deletion accounts for every mapped store",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "deletion.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [],
+    "sampled_checks": [
+      "Independent checks record absence for every mapped staged store after confirming a positive baseline."
+    ],
+    "unknowns": [
+      "Backup, export and production deletion are unverified."
+    ],
+    "forbidden_claims": [
+      "A recursive Firestore mode by itself proves deletion from Storage, CRM and backups."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Data owner retains per-store verification and requests redacted backup/export expiry evidence."
+    ],
+    "supporting_evidence": {
+      "Independent checks record absence for every mapped staged store after confirming a positive baseline.": {
+        "deletion.json": [
+          "/map",
+          "/baseline",
+          "/independently_checked_after"
+        ]
+      },
+      "Backup, export and production deletion are unverified.": {
+        "deletion.json": [
+          "/backup_export",
+          "/provenance"
+        ]
+      },
+      "A recursive Firestore mode by itself proves deletion from Storage, CRM and backups.": {
+        "deletion.json": [
+          "/mode",
+          "/independently_checked_after",
+          "/backup_export"
+        ]
+      },
+      "Data owner retains per-store verification and requests redacted backup/export expiry evidence.": {
+        "deletion.json": [
+          "/independently_checked_after",
+          "/backup_export"
+        ]
+      }
+    }
+  }
+}

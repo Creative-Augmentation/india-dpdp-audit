@@ -1,0 +1,65 @@
+{
+  "id": "fi04-staged-negative",
+  "stack": "firebase",
+  "mode": "staging",
+  "audit_date": "2026-11-18",
+  "title": "Staged client and server denial checks have positive controls",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "authorization.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [],
+    "sampled_checks": [
+      "Sampled Firestore and Storage owner reads succeed and anonymous and cross-user reads are denied.",
+      "The separate staged server handler allows the owner read and rejects missing-session and cross-user requests."
+    ],
+    "unknowns": [
+      "Writes, role changes, production IAM and deployed rules are unverified."
+    ],
+    "forbidden_claims": [
+      "Emulator reads prove all operations or production IAM are secured."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Security retains positive and negative client and server controls in the next staged check and verifies deployment separately."
+    ],
+    "supporting_evidence": {
+      "Sampled Firestore and Storage owner reads succeed and anonymous and cross-user reads are denied.": {
+        "authorization.json": [
+          "/client_firestore",
+          "/client_storage"
+        ]
+      },
+      "The separate staged server handler allows the owner read and rejects missing-session and cross-user requests.": {
+        "authorization.json": [
+          "/server_handler"
+        ]
+      },
+      "Writes, role changes, production IAM and deployed rules are unverified.": {
+        "authorization.json": [
+          "/environment",
+          "/deployed_iam"
+        ]
+      },
+      "Emulator reads prove all operations or production IAM are secured.": {
+        "authorization.json": [
+          "/deployed_iam",
+          "/environment"
+        ]
+      },
+      "Security retains positive and negative client and server controls in the next staged check and verifies deployment separately.": {
+        "authorization.json": [
+          "/client_firestore",
+          "/client_storage",
+          "/server_handler",
+          "/deployed_iam"
+        ]
+      }
+    }
+  }
+}

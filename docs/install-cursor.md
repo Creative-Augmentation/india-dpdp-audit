@@ -38,8 +38,6 @@ In Agent chat, type `/` and search for `india-dpdp-audit` to attach it to a mess
 
 Not needed if the steps above work. **Untested workaround:** keep the entire skill folder at `skills/india-dpdp-audit/` in your project, including its references, assets, scripts and licence. Create `.cursor/rules/india-dpdp-audit.mdc` with a `description` line and `alwaysApply: false`. Its body should instruct the agent to read `skills/india-dpdp-audit/SKILL.md` when the user requests a DPDP audit, and resolve that skill's relative links from its folder. Do not flatten the skill into the rule or retain only the legal reference; the platform and output-contract links need the complete package. Attach this rule explicitly if automatic selection is unavailable. This fallback has not been runtime-tested in Cursor.
 
-## UNVERIFIED
+## Verification limits
 
-- I did not run Cursor; check that `/india-dpdp-audit` appears in Agent chat after copying (a restart or window reload may be needed).
-- The skills page did not say whether Cursor needs a setting enabled for skills; check Cursor's settings if the skill does not appear.
-- The relative link from `SKILL.md` to `references/legal-baseline.md` is expected to resolve inside the skill folder; not tested.
+Runtime discovery and relative-reference loading in Cursor have not been tested for this release. After copying, check that the skill appears in Agent chat and its references can be read. A restart, window reload or version-specific setting may be needed; consult the current Cursor documentation if discovery fails. The rules workaround above remains untested.

@@ -1,0 +1,57 @@
+{
+  "id": "sh04-merchant-scope",
+  "stack": "shopify",
+  "mode": "repository_and_staging",
+  "audit_date": "2026-11-18",
+  "title": "Merchant routes a staged request without app webhook ownership",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "scope.json"
+      },
+      {
+        "path": "erasure.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [],
+    "sampled_checks": [
+      "The sampled merchant workflow documents retained order review and independently checks downstream fulfillment removal."
+    ],
+    "unknowns": [
+      "The underlying legal basis for order retention and the fulfillment app developer’s webhook configuration are unverified."
+    ],
+    "forbidden_claims": [
+      "The merchant must implement all App Store app compliance webhooks merely because it operates a Shopify store."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Privacy operations confirms the hold basis and rechecks the order on its recorded review date."
+    ],
+    "supporting_evidence": {
+      "The sampled merchant workflow documents retained order review and independently checks downstream fulfillment removal.": {
+        "erasure.json": [
+          "/records"
+        ]
+      },
+      "The underlying legal basis for order retention and the fulfillment app developer’s webhook configuration are unverified.": {
+        "erasure.json": [
+          "/records/order"
+        ]
+      },
+      "The merchant must implement all App Store app compliance webhooks merely because it operates a Shopify store.": {
+        "scope.json": [
+          "/role",
+          "/app_store_apps_developed"
+        ]
+      },
+      "Privacy operations confirms the hold basis and rechecks the order on its recorded review date.": {
+        "erasure.json": [
+          "/records/order/review_due"
+        ]
+      }
+    }
+  }
+}

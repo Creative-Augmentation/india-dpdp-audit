@@ -1,0 +1,17 @@
+{
+  "provenance": "Invented authorized-stage result input. No test was executed.",
+  "distribution": "app_store",
+  "delivery": {
+    "topic": "customers/redact",
+    "http_status": 200
+  },
+  "inventory": [
+    "app_profile",
+    "synthetic_export"
+  ],
+  "after": {
+    "app_profile": "absent",
+    "synthetic_export": "present"
+  },
+  "retained_exception": null
+}

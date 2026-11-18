@@ -1,0 +1,59 @@
+{
+  "id": "wo05-plugin-inventory-blocked",
+  "stack": "woocommerce",
+  "mode": "public",
+  "audit_date": "2026-11-18",
+  "title": "Plugin assets are visible but transfers and contractual scope are unavailable",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "checkout.html"
+      },
+      {
+        "path": "inspection.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [],
+    "sampled_checks": [
+      "A same-site plugin stylesheet and external information link appear in the supplied markup."
+    ],
+    "unknowns": [
+      "Actual payment transfers, recipients and contract terms are unverified."
+    ],
+    "forbidden_claims": [
+      "A stylesheet or information link proves payment data was transferred."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Store operations supplies redacted inventory and a separately authorized synthetic staged recipient trace."
+    ],
+    "supporting_evidence": {
+      "A same-site plugin stylesheet and external information link appear in the supplied markup.": {
+        "checkout.html": [
+          "L2-L3"
+        ]
+      },
+      "Actual payment transfers, recipients and contract terms are unverified.": {
+        "inspection.json": [
+          "/api_trace",
+          "/internal_inventory",
+          "/payment_form"
+        ]
+      },
+      "A stylesheet or information link proves payment data was transferred.": {
+        "checkout.html": [
+          "L2-L3"
+        ]
+      },
+      "Store operations supplies redacted inventory and a separately authorized synthetic staged recipient trace.": {
+        "inspection.json": [
+          "/api_trace",
+          "/internal_inventory"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "provenance": "Invented authorized-stage result input. No test was executed.",
+  "token": "SIM-01",
+  "before": {
+    "auth": "present",
+    "root": "present",
+    "descendant": "present",
+    "storage": "present",
+    "crm": "present"
+  },
+  "after": {
+    "auth": "absent",
+    "root": "absent",
+    "descendant": "present",
+    "storage": "present",
+    "crm": "present"
+  },
+  "locations": {
+    "root": "users/SIM-01",
+    "descendant": "users/SIM-01/preferences/demo",
+    "storage": "uploads/SIM-01/avatar.bin",
+    "crm": "DEMO-COPY-01"
+  },
+  "exceptions": []
+}

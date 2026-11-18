@@ -1,0 +1,13 @@
+{
+  "provenance": "Invented authorized-stage result input. No test was executed.",
+  "restore_job": {
+    "backup_id": "SNAP-DEMO-01",
+    "status": "complete"
+  },
+  "erased_marker": "DEMO-ERASED",
+  "exclusion_applied": true,
+  "post_restore": {
+    "DEMO-ERASED": "absent",
+    "DEMO-RETAINED": "present"
+  }
+}

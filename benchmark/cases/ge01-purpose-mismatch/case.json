@@ -1,0 +1,82 @@
+{
+  "id": "ge01-purpose-mismatch",
+  "stack": "generic",
+  "mode": "repository_and_staging",
+  "audit_date": "2026-11-18",
+  "title": "Required contact marker is routed to undisclosed promotions",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "contact.html"
+      },
+      {
+        "path": "routing.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [
+      {
+        "id": "GEN-01-01",
+        "severity": "critical",
+        "observation": "The sampled contact flow forwards the required contact field to unrelated promotions while saying it is used only for enquiry response. No separate promotion choice is recorded.",
+        "evidence_refs": [
+          "contact.html",
+          "routing.json"
+        ],
+        "evidence_locations": {
+          "contact.html": [
+            "L2-L6"
+          ],
+          "routing.json": [
+            "/field",
+            "/recipients/1",
+            "/separate_promotion_choice",
+            "/exception"
+          ]
+        },
+        "classification": "Observed technical gap. Legal applicability and phase require separate assessment."
+      }
+    ],
+    "sampled_checks": [
+      "The nearby notice explains the enquiry purpose."
+    ],
+    "unknowns": [
+      "Production use and any additional legal basis are unverified."
+    ],
+    "forbidden_claims": [
+      "Voluntary submission for a response establishes a ground for unrelated promotion, or the future DPDP notice obligation is a current violation on the supplied date."
+    ],
+    "seeded_criticals": [
+      "GEN-01-01"
+    ],
+    "plan_acceptance_checks": [
+      "Product and privacy separate purposes, align disclosure with actual recipients, and verify staged enquiry handling succeeds without promotions unless an appropriate separate choice applies."
+    ],
+    "supporting_evidence": {
+      "The nearby notice explains the enquiry purpose.": {
+        "contact.html": [
+          "L3"
+        ]
+      },
+      "Production use and any additional legal basis are unverified.": {
+        "routing.json": [
+          "/provenance",
+          "/exception"
+        ]
+      },
+      "Voluntary submission for a response establishes a ground for unrelated promotion, or the future DPDP notice obligation is a current violation on the supplied date.": {
+        "routing.json": [
+          "/recipients"
+        ]
+      },
+      "Product and privacy separate purposes, align disclosure with actual recipients, and verify staged enquiry handling succeeds without promotions unless an appropriate separate choice applies.": {
+        "routing.json": [
+          "/recipients",
+          "/separate_promotion_choice"
+        ]
+      }
+    }
+  }
+}

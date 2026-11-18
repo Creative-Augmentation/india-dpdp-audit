@@ -1,0 +1,16 @@
+{
+  "provenance": "Invented offline browser trace input, never a real capture.",
+  "scope": "One synthetic session, checkout/storefront instrumentation as specified in steps only.",
+  "steps": [
+    {
+      "state": "initial; contact form displayed",
+      "choice": "not_applicable",
+      "third_party_requests": []
+    },
+    {
+      "state": "revisit; form displayed",
+      "choice": "not_applicable",
+      "third_party_requests": []
+    }
+  ]
+}

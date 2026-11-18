@@ -1,0 +1,27 @@
+{
+  "provenance": "Invented authorized-stage result input. No test was executed.",
+  "request": "DEL-FIXTURE-05",
+  "mode": "recursive",
+  "map": [
+    "auth",
+    "firestore_root",
+    "firestore_descendant",
+    "storage",
+    "crm"
+  ],
+  "baseline": {
+    "auth": "present",
+    "firestore_root": "present",
+    "firestore_descendant": "present",
+    "storage": "present",
+    "crm": "present"
+  },
+  "independently_checked_after": {
+    "auth": "absent",
+    "firestore_root": "absent",
+    "firestore_descendant": "absent",
+    "storage": "absent",
+    "crm": "absent"
+  },
+  "backup_export": "not_supplied"
+}

@@ -1,0 +1,65 @@
+{
+  "id": "wo06-admin-controls",
+  "stack": "woocommerce",
+  "mode": "repository_and_staging",
+  "audit_date": "2026-11-18",
+  "title": "Sampled restore preserves the erasure exclusion list",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "restore.json"
+      },
+      {
+        "path": "roles.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [],
+    "sampled_checks": [
+      "The sampled restore leaves the erased marker absent and retains the control marker.",
+      "The staged role matrix denies the sampled store agent access to edit privacy settings."
+    ],
+    "unknowns": [
+      "Production restore and broader admin access are unverified."
+    ],
+    "forbidden_claims": [
+      "A successful restore proves backup expiry and all administrator permissions."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Keep erased and retained control markers in the next authorized restore exercise and preserve observed outcomes."
+    ],
+    "supporting_evidence": {
+      "The sampled restore leaves the erased marker absent and retains the control marker.": {
+        "restore.json": [
+          "/exclusion_applied",
+          "/post_restore"
+        ]
+      },
+      "The staged role matrix denies the sampled store agent access to edit privacy settings.": {
+        "roles.json": [
+          "/fixture_role",
+          "/edit_privacy_settings"
+        ]
+      },
+      "Production restore and broader admin access are unverified.": {
+        "roles.json": [
+          "/scope"
+        ]
+      },
+      "A successful restore proves backup expiry and all administrator permissions.": {
+        "restore.json": [
+          "/restore_job",
+          "/provenance"
+        ]
+      },
+      "Keep erased and retained control markers in the next authorized restore exercise and preserve observed outcomes.": {
+        "restore.json": [
+          "/post_restore"
+        ]
+      }
+    }
+  }
+}

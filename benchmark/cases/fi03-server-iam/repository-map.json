@@ -1,0 +1,9 @@
+{
+  "revision": "FIXTURE-REV-3",
+  "scope": "selected repository paths only",
+  "firestore_rules": "firestore.rules",
+  "server_data_access": "server SDK",
+  "server_iam_export": "not_supplied",
+  "server_handler": "not_supplied",
+  "deployed_rules": "not_supplied"
+}

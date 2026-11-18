@@ -8,7 +8,7 @@
     "schema_version": {"const": "1.0"},
     "audit_date": {"type": "string", "format": "date"},
     "scope": {"$ref": "#/$defs/scope"},
-    "coverage": {"type": "array", "items": {"$ref": "#/$defs/journey"}, "minItems": 1},
+    "coverage": {"type": "array", "items": {"$ref": "#/$defs/journey"}},
     "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
     "data_map": {"type": "array", "items": {"$ref": "#/$defs/flow"}},
     "legal_ledger": {"type": "array", "items": {"$ref": "#/$defs/legal_entry"}},
@@ -30,6 +30,7 @@
       "required": ["subject", "authorized_domains", "modes", "platforms", "limitations"],
       "properties": {
         "subject": {"$ref": "#/$defs/text"},
+        "audit_window_start": {"type": "string", "format": "date"},
         "authorized_domains": {"type": "array", "items": {"$ref": "#/$defs/domain"}, "uniqueItems": true},
         "modes": {
           "type": "array",

@@ -14,6 +14,8 @@ The agent inspects authorised evidence and proposes work. The helper validates a
 
 Reports preserve **Observed gap**, **Not verified**, **Meets sampled check** and **Not applicable**. Evidence status, legal status and practical priority remain separate. No overall compliance score is generated.
 
+Rendered reports start with a short summary of gaps, checks that could not be completed, sampled successes and next actions. Journey coverage counts refer only to the recorded sample; overall compliance remains undetermined.
+
 **Not legal advice or certification.** Audit only sites and repositories you own or are authorised to inspect. See [DISCLAIMER.md](DISCLAIMER.md). Public-only work cannot establish backend deletion, contracts or operational controls.
 
 ## Install and use the skill
@@ -68,12 +70,16 @@ A cookie, public Firebase client key, foreign host or missing public backend evi
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Tests check the output contract, inconsistent evidence/status combinations, safe rendering and CLI behaviour. [Synthetic blind cases](evals/README.md) separately test agent reasoning; unit-test success does not establish agent accuracy. The [CI template](ci/README.md) targets Python 3.10 and 3.14 using synthetic inputs, never customer sites; it is not active yet.
+Tests check the output contract, inconsistent evidence/status combinations, safe rendering and CLI behaviour. The [synthetic evaluation packets](evals/README.md) are prepared for agent runs; the full set has not yet been run. A separate [exploratory forward test](evals/results/2026-11-18-copper.md) records its narrow result. Unit-test success does not establish agent accuracy. The [CI template](ci/README.md) targets Python 3.10 and 3.14 using synthetic inputs, never customer sites; it is not active yet.
+
+The [benchmark coverage](docs/benchmark-coverage.md) adds 24 public development packets and reserves eight private cases for independent Opus evaluation. Public expected answers support regression work, not independent accuracy claims. The [phased plan](docs/PHASED_BUILD_PLAN.md) records the approved foundation/benchmark work and the next priority: an actual evidence collector and merchant command.
 
 [Research and design](docs/research-and-design.md) records upstream inspiration and the next collector evaluation. No upstream scanner is bundled or invoked in this release. [Contributing](CONTRIBUTING.md) and [refreshing copies](REFRESH.md) describe the maintained source.
 
 ## Licence and contact
 
-[PolyForm Noncommercial 1.0.0](LICENSE) remains unchanged. Commercial uses, including selling audits or building a paid product using this skill, require permission. Open a GitHub Issue for general questions; never include personal data, credentials or private site evidence. See [SECURITY.md](SECURITY.md).
+The current licence is [PolyForm Noncommercial 1.0.0](LICENSE). **Business use, including auditing a for-profit merchant's own store, needs separate permission.** Selling audits or offering a paid product also needs permission. Open a GitHub Issue for general questions; never include personal data, credentials or private site evidence. See [SECURITY.md](SECURITY.md).
+
+A [custom self-use licence proposal](docs/licensing/CUSTOM_SELF_USE_LICENSE_DRAFT.md) would allow businesses to audit their own systems while reserving agency services and resale. It awaits owner approval and grants no additional rights at present. The [compatibility note](docs/licensing/UPSTREAM_COMPATIBILITY.md) covers the boundaries for possible upstream reuse.
 
 Required Notice: Copyright (c) 2026 Creative Augmentation

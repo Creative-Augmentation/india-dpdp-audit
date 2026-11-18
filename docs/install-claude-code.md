@@ -33,7 +33,6 @@ Start Claude Code and either ask for a DPDP audit (Claude loads the skill when t
 
 Per the docs, changes under `~/.claude/skills/` or `.claude/skills/` are picked up without a restart; a skills folder created after Claude Code started may need a restart.
 
-## UNVERIFIED
+## Verification limits
 
-- The restart note above: the docs say live edits are picked up; I did not verify the case of a brand-new top-level `skills` folder. If the skill does not appear, restart Claude Code.
-- I read the first 100,000 of about 118,000 characters of the docs page; check the page if you rely on anything not listed here (for example enterprise paths).
+These paths were checked against the documentation on the recorded date. Runtime discovery, including a newly created top-level skills folder, has not been tested for this release. Restart Claude Code if the skill does not appear. Enterprise paths and other installation modes are outside this guide's verified scope.

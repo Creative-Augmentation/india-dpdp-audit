@@ -1,0 +1,79 @@
+{
+  "id": "ge06-withdrawal-revisit",
+  "stack": "generic",
+  "mode": "staging",
+  "audit_date": "2026-11-18",
+  "title": "Revisit restores optional advertising after recorded withdrawal",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "browser.json"
+      },
+      {
+        "path": "choices.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [
+      {
+        "id": "GEN-06-01",
+        "severity": "high",
+        "observation": "The sampled revisit sends an optional advertising request even though the recorded choice persists as denied after withdrawal.",
+        "evidence_refs": [
+          "browser.json",
+          "choices.json"
+        ],
+        "evidence_locations": {
+          "browser.json": [
+            "/steps/2",
+            "/steps/3"
+          ],
+          "choices.json": [
+            "/expected/denied",
+            "/persisted_before_revisit"
+          ]
+        },
+        "classification": "Observed technical gap. Legal applicability and phase require separate assessment."
+      }
+    ],
+    "sampled_checks": [
+      "The sampled endpoint emits during acceptance and stays quiet immediately after withdrawal."
+    ],
+    "unknowns": [
+      "Other devices, production rollout and retention of previously collected data are unverified."
+    ],
+    "forbidden_claims": [
+      "Immediate withdrawal silence proves persistence of enforcement on revisit."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Web owner retests denial at initialization, reload and revisit after withdrawal, retaining a positive acceptance control for the same endpoint."
+    ],
+    "supporting_evidence": {
+      "The sampled endpoint emits during acceptance and stays quiet immediately after withdrawal.": {
+        "browser.json": [
+          "/steps/1",
+          "/steps/2"
+        ]
+      },
+      "Other devices, production rollout and retention of previously collected data are unverified.": {
+        "choices.json": [
+          "/scope"
+        ]
+      },
+      "Immediate withdrawal silence proves persistence of enforcement on revisit.": {
+        "browser.json": [
+          "/steps/2",
+          "/steps/3"
+        ]
+      },
+      "Web owner retests denial at initialization, reload and revisit after withdrawal, retaining a positive acceptance control for the same endpoint.": {
+        "browser.json": [
+          "/steps"
+        ]
+      }
+    }
+  }
+}

@@ -16,6 +16,8 @@ Public sources reviewed on 18 November 2026. The following are design references
 
 The repository's PolyForm Noncommercial licence is unchanged. An upstream project's public visibility does not establish permission to relicense its components.
 
+The [component compatibility assessment](licensing/UPSTREAM_COMPATIBILITY.md) explains the proposed custom licence boundaries before any import. It does not approve bundling an entire upstream package. ShipSafe's competing-product restriction remains a reason to exclude its implementation from this product.
+
 ## Next collector experiment
 
 Evaluate a pinned Vettam collector on synthetic local sites behind an adapter to this package's evidence format. Do not accept upstream findings as authoritative legal verdicts. Compare captured facts, skipped interactions, redaction, state isolation and date metadata against a small known-answer benchmark before adopting a dependency.

@@ -2,6 +2,6 @@
 
 `validate-audit.yml` is the proposed GitHub Actions workflow for Python 3.10 and 3.14. It is deliberately stored outside `.github/workflows/` and does not run in this location.
 
-The feature-branch publisher could not create `.github/workflows/ci.yml`: GitHub rejected the push because its OAuth token lacks `workflow` scope. The implementation and synthetic checks can still be reviewed. Local tests passed on Python 3.14; hosted validation, including Python 3.10, remains pending.
+Hosted checks are pending. All 70 tests and copied-package validation/rendering passed locally on Python 3.10.19 and 3.14.7 on 18 November 2026. Local validation is recorded separately in the review handoff; it does not establish that GitHub Actions has run.
 
-A maintainer with workflow permission can activate this exact template at `.github/workflows/ci.yml` in a subsequent commit. It installs the packaged validation dependencies, runs the unit tests and validates/renders the synthetic example. Its only GitHub permission is `contents: read`; it never scans customer websites or uploads audit records.
+A maintainer with workflow permission can activate this template at `.github/workflows/ci.yml` in a subsequent commit. It pins action revisions, installs the packaged dependencies, runs unit tests, validates benchmark fixtures, checks fixture hygiene and validates/renders the synthetic example. Its only GitHub permission is `contents: read`; it never scans customer websites or uploads audit records.

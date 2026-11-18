@@ -1,0 +1,5 @@
+{
+  "fixture_role": "store_agent",
+  "scope": "staging role matrix only",
+  "edit_privacy_settings": "denied"
+}

@@ -1,0 +1,82 @@
+{
+  "id": "wo02-custom-erasure",
+  "stack": "woocommerce",
+  "mode": "repository_and_staging",
+  "audit_date": "2026-11-18",
+  "title": "WordPress eraser misses the plugin’s mapped external copy",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "plugin.php"
+      },
+      {
+        "path": "erasure.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [
+      {
+        "id": "WOO-02-01",
+        "severity": "critical",
+        "observation": "The sampled plugin erasure marks completion while a mapped external delivery-notes copy remains with no documented exception.",
+        "evidence_refs": [
+          "plugin.php",
+          "erasure.json"
+        ],
+        "evidence_locations": {
+          "plugin.php": [
+            "L3-L8"
+          ],
+          "erasure.json": [
+            "/final_status",
+            "/before",
+            "/after",
+            "/exception"
+          ]
+        },
+        "classification": "Observed technical gap. Legal applicability and phase require separate assessment."
+      }
+    ],
+    "sampled_checks": [
+      "The sampled local plugin notes were removed."
+    ],
+    "unknowns": [
+      "Exports, backups and runtime paths outside the sample are unverified."
+    ],
+    "forbidden_claims": [
+      "Hook registration and completed status prove end-to-end erasure."
+    ],
+    "seeded_criticals": [
+      "WOO-02-01"
+    ],
+    "plan_acceptance_checks": [
+      "Plugin developer and privacy operations retest and independently check the external copy, verify retry behavior and record completion or approved exception."
+    ],
+    "supporting_evidence": {
+      "The sampled local plugin notes were removed.": {
+        "erasure.json": [
+          "/after/wp_notes"
+        ]
+      },
+      "Exports, backups and runtime paths outside the sample are unverified.": {
+        "erasure.json": [
+          "/provenance"
+        ]
+      },
+      "Hook registration and completed status prove end-to-end erasure.": {
+        "erasure.json": [
+          "/final_status",
+          "/after/external_notes"
+        ]
+      },
+      "Plugin developer and privacy operations retest and independently check the external copy, verify retry behavior and record completion or approved exception.": {
+        "erasure.json": [
+          "/after/external_notes",
+          "/exception"
+        ]
+      }
+    }
+  }
+}

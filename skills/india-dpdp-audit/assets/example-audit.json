@@ -85,7 +85,7 @@
     {
       "id": "L-notice",
       "instrument": "Final DPDP Rules 2025, G.S.R. 846(E)",
-      "provision": "Rules 1 and 3",
+      "provision": "Rule 3",
       "source_url": "https://www.meity.gov.in/static/uploads/2025/11/53450e6e5dc0bfa85ebd78686cadad39.pdf",
       "verified_on": "2026-10-27",
       "published_on": "2025-11-13",
@@ -93,6 +93,18 @@
       "preparation_on": "2027-05-13",
       "status": "future",
       "notes": "Rule 3 is in the eighteen-month phase for notices associated with consent. Confirm the exact commencement day and account for corrigenda. This fixture makes no finding on current-law applicability."
+    },
+    {
+      "id": "L-retention",
+      "instrument": "DPDP Act 2023 and Final DPDP Rules 2025",
+      "provision": "Section 8(7) and Rule 8",
+      "source_url": "https://www.meity.gov.in/static/uploads/2025/11/53450e6e5dc0bfa85ebd78686cadad39.pdf",
+      "verified_on": "2026-10-27",
+      "published_on": "2025-11-13",
+      "effective_on": null,
+      "preparation_on": "2027-05-13",
+      "status": "future",
+      "notes": "Erasure and retention duties are in the eighteen-month phase. Apply Act section 8(7) and Rule 8 with their conditions, legal-retention exceptions and schedule thresholds; do not apply every inactivity period to every merchant. Applicability and actual ticket deletion remain unverified."
     }
   ],
   "findings": [
@@ -118,9 +130,9 @@
       "evidence_status": "not_verified",
       "applicability": "unknown",
       "applicability_reason": "Retention criteria and the actual processing purpose require internal confirmation.",
-      "legal_status": "good_practice",
+      "legal_status": "future",
       "evidence_ids": ["E-handler"],
-      "legal_ids": []
+      "legal_ids": ["L-retention"]
     }
   ],
   "actions": [

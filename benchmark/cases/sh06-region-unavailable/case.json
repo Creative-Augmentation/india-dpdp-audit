@@ -1,0 +1,61 @@
+{
+  "id": "sh06-region-unavailable",
+  "stack": "shopify",
+  "mode": "public",
+  "audit_date": "2026-11-18",
+  "title": "Storefront banner seen but region and app behavior unavailable",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "storefront.html"
+      },
+      {
+        "path": "inspection.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [],
+    "sampled_checks": [
+      "The sampled storefront exposes a preferences button and a policy link."
+    ],
+    "unknowns": [
+      "Regional behavior, effect of choices and actual pixel execution are unverified."
+    ],
+    "forbidden_claims": [
+      "An observed button proves platform privacy settings and all apps enforce choices."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Request region, theme and pixel configuration and an authorized staged trace with accept and deny controls."
+    ],
+    "supporting_evidence": {
+      "The sampled storefront exposes a preferences button and a policy link.": {
+        "storefront.html": [
+          "L3-L4"
+        ]
+      },
+      "Regional behavior, effect of choices and actual pixel execution are unverified.": {
+        "inspection.json": [
+          "/region",
+          "/consent_interaction",
+          "/network_instrumentation",
+          "/internal_settings"
+        ]
+      },
+      "An observed button proves platform privacy settings and all apps enforce choices.": {
+        "inspection.json": [
+          "/consent_interaction",
+          "/internal_settings"
+        ]
+      },
+      "Request region, theme and pixel configuration and an authorized staged trace with accept and deny controls.": {
+        "inspection.json": [
+          "/region",
+          "/internal_settings"
+        ]
+      }
+    }
+  }
+}

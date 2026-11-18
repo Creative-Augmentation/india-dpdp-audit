@@ -6,13 +6,24 @@ import re
 import sys
 from datetime import date, datetime, timedelta, timezone
 from graphlib import CycleError, TopologicalSorter
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from textwrap import shorten
 from typing import Any
+from unicodedata import category
 from urllib.parse import urlsplit
 
 from jsonschema import Draft202012Validator
 
-SCHEMA_PATH = Path(__file__).resolve().parents[1] / "assets" / "audit.schema.json"
+SCRIPT_DIR = Path(__file__).resolve().parent
+SCHEMA_PATH = SCRIPT_DIR.parent / "assets" / "audit.schema.json"
+LEGAL_PHASES_SPEC = spec_from_file_location("legal_phases", SCRIPT_DIR / "legal_phases.py")
+legal_phases = module_from_spec(LEGAL_PHASES_SPEC)
+LEGAL_PHASES_SPEC.loader.exec_module(legal_phases)
+PRIORITY = {"high": 0, "medium": 1, "low": 2, "informational": 3}
+EVIDENCE_STATUS_ORDER = {
+    "observed_gap": 0, "not_verified": 1, "meets_sampled_check": 2, "not_applicable": 3,
+}
 AUDIT_TIMEZONE = timezone(timedelta(hours=5, minutes=30))
 COLLECTIONS = ("coverage", "evidence", "data_map", "legal_ledger", "findings", "actions")
 EVIDENCE_MODES = {
@@ -38,14 +49,17 @@ def reject_constant(token):
 
 
 def read_json(path: Path):
-    with path.open(encoding="utf-8") as content:
+    with path.open(encoding="utf-8-sig") as content:
         return json.load(content, object_pairs_hook=unique_object, parse_constant=reject_constant)
 
 
 def schema_validator():
     schema = read_json(SCHEMA_PATH)
     Draft202012Validator.check_schema(schema)
-    return Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
+    checker = Draft202012Validator.FORMAT_CHECKER
+    if not {"date", "date-time"} <= checker.checkers.keys():
+        raise ValueError("JSON Schema date/date-time format checkers are missing. Install the skill's scripts/requirements.txt.")
+    return Draft202012Validator(schema, format_checker=checker)
 
 
 def validate(record, validator):
@@ -71,13 +85,19 @@ def capture_time(evidence):
     value = evidence["captured_at"].upper().replace("Z", "+00:00")
     # Python 3.10 expects exactly three or six fractional second digits.
     value = re.sub(r"\.([0-9]+)", lambda match: "." + match[1][:6].ljust(6, "0"), value)
-    return datetime.fromisoformat(value)
+    captured = datetime.fromisoformat(value)
+    if captured.utcoffset() is None:
+        raise ValueError("captured_at requires a time zone offset")
+    return captured
 
 
 def check_consistency(record: dict[str, Any]) -> list[str]:
     errors = []
     audit_date = date.fromisoformat(record["audit_date"])
     scope = record["scope"]
+    window_start = date.fromisoformat(scope.get("audit_window_start", record["audit_date"]))
+    if window_start > audit_date:
+        errors.append("scope.audit_window_start is after the audit date")
     modes = set(scope["modes"])
     domains = set(scope["authorized_domains"])
     repositories = {
@@ -111,8 +131,17 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
     def has_direct_evidence(items):
         return any(item["status"] == "direct" for item in items)
 
+    capture_times = {}
+    capture_dates = {}
     for evidence in record["evidence"]:
         identifier = evidence["id"]
+        try:
+            captured = capture_time(evidence)
+            capture_times[identifier] = captured
+            capture_dates[identifier] = captured.astimezone(AUDIT_TIMEZONE).date()
+        except (ValueError, OverflowError) as error:
+            errors.append(f"{identifier}.captured_at: {error}")
+            return errors
         kind = evidence["kind"]
         mode = EVIDENCE_MODES.get(kind)
         if (kind == "owner_statement") != (evidence["status"] == "asserted"):
@@ -127,7 +156,7 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
             errors.append(f"{identifier}: repository and revision are only valid for repository_code")
         if mode == "public" and evidence_host(evidence["locator"]) not in domains:
             errors.append(f"{identifier}: public locator must be an HTTP(S) URL on an authorized domain")
-        if capture_time(evidence).astimezone(AUDIT_TIMEZONE).date() > audit_date:
+        if capture_dates[identifier] > audit_date:
             errors.append(f"{identifier}: evidence captured after the audit date")
 
     for journey in record["coverage"]:
@@ -149,6 +178,7 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
 
     for entry in record["legal_ledger"]:
         identifier = entry["id"]
+        errors.extend(legal_phases.check_entry(entry, audit_date))
         effective = date.fromisoformat(entry["effective_on"]) if entry["effective_on"] else None
         effective_by = date.fromisoformat(entry["effective_by"]) if "effective_by" in entry else None
         verified = date.fromisoformat(entry["verified_on"])
@@ -161,11 +191,17 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
             errors.append(f"{identifier}: publication is after source verification")
         if effective and effective_by:
             errors.append(f"{identifier}: effective_by is only valid when the exact effective date is unresolved")
+        preparation = date.fromisoformat(entry["preparation_on"]) if "preparation_on" in entry else None
         latest_commencement = effective or effective_by
         if entry["status"] == "current" and (latest_commencement is None or latest_commencement > audit_date):
             errors.append(f"{identifier}: current duty requires an effective date or latest commencement on or before the audit date")
         if entry["status"] == "future" and latest_commencement and latest_commencement <= audit_date:
             errors.append(f"{identifier}: future duty has an effective date or latest commencement on or before the audit date")
+        if entry["status"] == "future" and preparation and audit_date > preparation and verified <= preparation:
+            errors.append(
+                f"{identifier}: future duty is past the preparation date. Re-verify against current official sources "
+                "or update its status to uncertain or current as supported by the evidence."
+            )
 
     for finding in record["findings"]:
         identifier = finding["id"]
@@ -174,9 +210,13 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
         evidence_status = finding["evidence_status"]
         applicability = finding["applicability"]
         legal_status = finding["legal_status"]
-        if evidence_status in {"observed_gap", "meets_sampled_check", "not_applicable"}:
-            if not has_direct_evidence(evidence):
-                errors.append(f"{identifier}: {evidence_status} requires direct evidence")
+        if evidence_status == "observed_gap" and not has_direct_evidence(evidence):
+            errors.append(f"{identifier}: observed_gap requires direct evidence")
+        if evidence_status in {"meets_sampled_check", "not_applicable"}:
+            if not evidence or any(item["status"] != "direct" or item["kind"] == "owner_statement" for item in evidence):
+                errors.append(f"{identifier}: {evidence_status} requires only direct non-owner evidence")
+            if any(capture_dates[item["id"]] < window_start for item in evidence):
+                errors.append(f"{identifier}: {evidence_status} requires evidence captured in the audit window")
         if (evidence_status == "not_applicable") != (applicability == "not_applicable"):
             errors.append(f"{identifier}: not_applicable requires matching evidence and applicability statuses")
         source_statuses = {source["status"] for source in sources}
@@ -218,9 +258,9 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
                 if evidence_id in indexes["evidence"]
             ]
             if baseline_evidence:
-                last_observation = max(map(capture_time, baseline_evidence))
+                last_observation = max(capture_times[item["id"]] for item in baseline_evidence)
                 if not any(
-                    item["status"] == "direct" and capture_time(item) > last_observation
+                    item["status"] == "direct" and capture_times[item["id"]] > last_observation
                     for item in matching_evidence
                 ):
                     errors.append(f"{identifier}: verification must be newer than the baseline evidence")
@@ -238,20 +278,120 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
 
 def markdown(text):
     """Keep data in literal text, including under Markdown extensions."""
-    text = " ".join(str(text).split())
-    return "".join(
-        char if char.isalnum() or char == " " else
-        f"&#{ord(char)};" if char.isprintable() else
-        ""
+    text = " ".join("".join(
+        char for char in str(text)
+        if char in {"\u200c", "\u200d"} or category(char) not in {"Cc", "Cf", "Cs"}
+        or char in {"\t", "\n", "\r"}
+    ).split())
+    escaped = "".join(
+        f"&#{ord(char)};" if char in r'&<>"\`*_{}[]|~$#' else char
         for char in text
     )
+    # GFM can autolink bare URLs and email addresses.
+    return re.sub(r"(?i)https?://|www\.|@", lambda match: match[0].translate({
+        ord(":"): "&#58;", ord("."): "&#46;", ord("@"): "&#64;",
+    }), escaped)
+
+
+def render_summary(record, findings):
+    """Summarize recorded results within a fixed reading budget."""
+    lines = ["", "## Summary", ""]
+    groups = {
+        status: [finding for finding in findings if finding["evidence_status"] == status]
+        for status in ("observed_gap", "not_verified", "meets_sampled_check")
+    }
+    coverage = record["coverage"]
+    blocked = [journey for journey in coverage if journey["status"] == "blocked"]
+    uninspected = [journey for journey in coverage if journey["status"] == "not_inspected"]
+    missed = blocked + uninspected
+    inspected_count = len(coverage) - len(missed)
+
+    def excerpt(value):
+        return markdown(shorten(value, width=112, placeholder="…"))
+
+    def preview(items, describe, limit):
+        for item in items[:limit]:
+            lines.append(f"- {markdown(item['id'])} · {describe(item)}")
+        if len(items) > limit:
+            lines.append(f"- {len(items) - limit} more in the detailed report.")
+
+    legal_status = {
+        "current": "current duty",
+        "future": "future duty",
+        "uncertain": "legal timing uncertain",
+        "good_practice": "good practice",
+    }
+    applicability = {
+        "applicable": "applicable",
+        "unknown": "applicability unknown",
+        "not_applicable": "not applicable",
+    }
+
+    gaps = groups["observed_gap"]
+    lines.append(f"**Observed gaps** · {len(gaps)} recorded in the sample.")
+    preview(
+        gaps,
+        lambda item: (
+            f"{excerpt(item['title'])} "
+            f"({item['priority']} priority, {legal_status[item['legal_status']]}, "
+            f"{applicability[item['applicability']]})"
+        ),
+        3,
+    )
+
+    unknowns = groups["not_verified"]
+    lines.extend((
+        "",
+        f"**Could not check** · Unverified findings ({len(unknowns)}), "
+        f"journeys without completed inspection ({len(missed)}).",
+    ))
+    if not coverage:
+        lines.append("- No journeys were recorded. There is no recorded journey coverage to assess.")
+    elif not inspected_count:
+        lines.append("- The record shows no completed journey inspections.")
+    preview(unknowns, lambda item: excerpt(item["title"]), 2)
+    preview(missed, lambda item: f"{excerpt(item['name'])} ({item['status'].replace('_', ' ')})", 2)
+
+    successes = groups["meets_sampled_check"]
+    lines.extend(("", f"**Sampled successes** · {len(successes)} recorded checks."))
+    preview(successes, lambda item: excerpt(item["title"]), 2)
+
+    modes = ", ".join(record["scope"]["modes"])
+    lines.extend((
+        "",
+        f"**Scope and coverage** · {modes}. Inspected {inspected_count} of {len(coverage)} recorded journeys "
+        f"({len(blocked)} blocked, {len(uninspected)} uninspected).",
+        "These results describe the recorded sample only. Overall compliance remains undetermined.",
+        "",
+        "**Next actions**",
+    ))
+    finding_order = {item["id"]: index for index, item in enumerate(gaps + unknowns)}
+    pending = sorted(
+        (action for action in record["actions"] if action["verification_status"] != "verified"),
+        key=lambda action: min(
+            (finding_order.get(finding_id, len(finding_order)) for finding_id in action["finding_ids"]),
+            default=len(finding_order),
+        ),
+    )
+    preview(
+        pending,
+        lambda item: f"{excerpt(item['summary'])} ({excerpt(item['owner_role'])}, {item['verification_status']})",
+        3,
+    )
+    if not coverage:
+        lines.append("- List the collection and data-handling journeys in scope and document what evidence each needs.")
+    elif missed:
+        lines.append(f"- Obtain the access or evidence in the coverage notes and finish the {len(missed)} outstanding journey inspections.")
+    elif not pending:
+        lines.append("- Review the scope limitations and obtain evidence for any controls outside the sample.")
+    return lines
 
 
 def render(record):
     lines = [
         "# India DPDP audit",
         "",
-        "Technical and readiness review within the recorded scope. Confirm legal applicability, exemptions, and deadlines with qualified Indian counsel.",
+        "Technical and readiness review within the recorded scope. This report is not legal advice or a compliance certificate.",
         "",
         f"**Subject** {markdown(record['scope']['subject'])}",
         f"**Audit date** {markdown(record['audit_date'])}",
@@ -263,10 +403,10 @@ def render(record):
     def values(label, items, empty="None recorded"):
         field(label, "; ".join(items) if items else empty)
 
-    def heading(title, items):
+    def heading(title, items, empty="None recorded."):
         lines.extend(("", f"## {title}", ""))
         if not items:
-            lines.append("None recorded.")
+            lines.append(empty)
 
     def entry(item, title=None):
         label = markdown(item["id"])
@@ -274,11 +414,19 @@ def render(record):
             label += " — " + markdown(title)
         lines.extend(("", f"### {label}", ""))
 
+    findings = sorted(
+        record["findings"],
+        key=lambda item: (EVIDENCE_STATUS_ORDER[item["evidence_status"]], PRIORITY[item["priority"]]),
+    )
+    lines.extend(render_summary(record, findings))
+
     scope = record["scope"]
     heading("Scope", scope)
     values("Authorized domains", scope["authorized_domains"])
     values("Modes", scope["modes"])
     values("Platforms", scope["platforms"])
+    if "audit_window_start" in scope:
+        field("Audit window start", scope["audit_window_start"])
     values("Authorized repositories", [
         item["locator"] + " @ " + item["revision"]
         for item in scope.get("authorized_repositories", [])
@@ -286,9 +434,8 @@ def render(record):
     for limitation in scope["limitations"]:
         field("Limitation", limitation)
 
-    heading("Findings", record["findings"])
-    priority = {"high": 0, "medium": 1, "low": 2, "informational": 3}
-    for finding in sorted(record["findings"], key=lambda item: priority[item["priority"]]):
+    heading("Findings", findings, "No findings were recorded. See the summary for journey coverage and evidence limits.")
+    for finding in findings:
         entry(finding, finding["title"])
         field("Priority", finding["priority"])
         field("Confidence", finding["confidence"])
@@ -351,6 +498,8 @@ def render(record):
             field("Preparation date", source["preparation_on"])
         field("Status at audit date", source["status"])
         field("Notes", source["notes"])
+        for warning in legal_phases.entry_warnings(source):
+            field("Legal phase review", warning)
 
     heading("Evidence register", record["evidence"])
     for evidence in record["evidence"]:
@@ -365,32 +514,79 @@ def render(record):
     return "\n".join(lines) + "\n"
 
 
+UNORDERED_FIELDS = {
+    "authorized_domains", "modes", "platforms", "evidence_ids", "legal_ids",
+    "finding_ids", "dependencies", "verification_evidence_ids",
+}
+
+
+def comparison_value(value, field=None):
+    if isinstance(value, dict):
+        return {key: comparison_value(item, key) for key, item in value.items()}
+    if isinstance(value, list):
+        if field in UNORDERED_FIELDS:
+            return sorted(value)
+        return [comparison_value(item) for item in value]
+    return value
+
+
+def changed_fields(before, after):
+    return sorted(
+        field for field in before.keys() | after.keys()
+        if comparison_value(before.get(field), field) != comparison_value(after.get(field), field)
+    )
+
+
+def closure_warnings(before, after):
+    earlier_date = date.fromisoformat(before["audit_date"])
+    earlier_ids = {evidence["id"] for evidence in before["evidence"]}
+    fresh_ids = {
+        evidence["id"] for evidence in after["evidence"]
+        if evidence["id"] not in earlier_ids
+        and evidence["status"] == "direct"
+        and evidence["kind"] != "owner_statement"
+        and capture_time(evidence).astimezone(AUDIT_TIMEZONE).date() > earlier_date
+    }
+    later_findings = {finding["id"]: finding for finding in after["findings"]}
+    warnings = []
+    for finding in sorted(before["findings"], key=lambda item: item["id"]):
+        if finding["evidence_status"] not in {"observed_gap", "not_verified"}:
+            continue
+        identifier = finding["id"]
+        later = later_findings.get(identifier)
+        if later is None:
+            warnings.append(f"{identifier}: removed finding has no linked follow-up evidence to establish closure.")
+        elif later["evidence_status"] in {"meets_sampled_check", "not_applicable"} and not fresh_ids.intersection(later["evidence_ids"]):
+            warnings.append(f"{identifier}: status changed without new linked direct evidence captured after the earlier audit date.")
+    return warnings
+
+
 def diff(before, after):
-    """List record differences by stable ID without inferring closure."""
+    """List record differences by stable ID and flag unsupported closure."""
     result = {}
-    for key in ("audit_date", "scope"):
-        if before[key] != after[key]:
-            fields = ["value"] if key == "audit_date" else sorted(
-                field for field in before[key].keys() | after[key].keys()
-                if before[key].get(field) != after[key].get(field)
-            )
-            result[key] = fields
+    if before["audit_date"] != after["audit_date"]:
+        result["audit_date"] = ["value"]
+    scope_fields = changed_fields(before["scope"], after["scope"])
+    if scope_fields:
+        result["scope"] = scope_fields
+    if {"subject", "authorized_domains"}.intersection(scope_fields):
+        result["scope_warnings"] = ["Subject or authorized domains changed. Confirm that the two audits are comparable."]
 
     for key in COLLECTIONS:
         old = {item["id"]: item for item in before[key]}
         new = {item["id"]: item for item in after[key]}
         changed = {}
         for identifier in sorted(old.keys() & new.keys()):
-            previous, current = old[identifier], new[identifier]
-            if previous != current:
-                changed[identifier] = sorted(
-                    field for field in previous.keys() | current.keys()
-                    if previous.get(field) != current.get(field)
-                )
+            fields = changed_fields(old[identifier], new[identifier])
+            if fields:
+                changed[identifier] = fields
         added = sorted(new.keys() - old.keys())
         removed = sorted(old.keys() - new.keys())
         if added or removed or changed:
             result[key] = {"added": added, "removed": removed, "changed": changed}
+    warnings = closure_warnings(before, after)
+    if warnings:
+        result["closure_warnings"] = warnings
     return result
 
 
@@ -408,17 +604,20 @@ def main(argv=None):
     records = []
     try:
         validator = schema_validator()
-        for path in paths:
+    except (OSError, ValueError, OverflowError, RecursionError) as error:
+        print(f"{SCHEMA_PATH}: {error}", file=sys.stderr)
+        return 1
+    for path in paths:
+        try:
             record = read_json(path)
             errors = validate(record, validator)
-            if errors:
-                for error in errors:
-                    print(f"{path}: {error}", file=sys.stderr)
-                return 1
-            records.append(record)
-    except (OSError, ValueError, OverflowError, RecursionError) as error:
-        print(error, file=sys.stderr)
-        return 1
+        except (OSError, ValueError, OverflowError, RecursionError) as error:
+            errors = [str(error)]
+        if errors:
+            for error in errors:
+                print(f"{path}: {error}", file=sys.stderr)
+            return 1
+        records.append(record)
 
     if args.command == "render":
         print(render(records[0]), end="")

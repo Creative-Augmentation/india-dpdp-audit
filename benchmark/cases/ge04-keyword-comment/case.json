@@ -1,0 +1,60 @@
+{
+  "id": "ge04-keyword-comment",
+  "stack": "generic",
+  "mode": "repository_and_staging",
+  "audit_date": "2026-11-18",
+  "title": "A dead-code comment is not a third-party transfer",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "contact.js"
+      },
+      {
+        "path": "browser.json"
+      },
+      {
+        "path": "flow.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [],
+    "sampled_checks": [
+      "The source writes an enquiry purpose statement and the two sampled views show no third-party request."
+    ],
+    "unknowns": [
+      "Post-submission routing and other views are unverified."
+    ],
+    "forbidden_claims": [
+      "The comment demonstrates tracking, an active pixel, a credential exposure or an international transfer."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Keep post-submission routing an evidence request and examine only a separately authorized synthetic staged submission."
+    ],
+    "supporting_evidence": {
+      "The source writes an enquiry purpose statement and the two sampled views show no third-party request.": {
+        "contact.js": [
+          "L2-L4"
+        ]
+      },
+      "Post-submission routing and other views are unverified.": {
+        "flow.json": [
+          "/scope",
+          "/form_submitted"
+        ]
+      },
+      "The comment demonstrates tracking, an active pixel, a credential exposure or an international transfer.": {
+        "contact.js": [
+          "L1"
+        ]
+      },
+      "Keep post-submission routing an evidence request and examine only a separately authorized synthetic staged submission.": {
+        "flow.json": [
+          "/form_submitted"
+        ]
+      }
+    }
+  }
+}
