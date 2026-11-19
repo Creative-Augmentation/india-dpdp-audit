@@ -1,0 +1,35 @@
+{
+  "provenance": "Invented offline browser trace input, never a real capture.",
+  "scope": "One synthetic session, checkout/storefront instrumentation as specified in steps only.",
+  "steps": [
+    {
+      "state": "initial",
+      "choice": "unset",
+      "third_party_requests": [
+        {
+          "url": "https://theme-pixel.example.test/analytics",
+          "fields": {
+            "session_marker": "SIM-001"
+          }
+        }
+      ]
+    },
+    {
+      "state": "reject",
+      "choice": "denied",
+      "third_party_requests": []
+    },
+    {
+      "state": "revisit",
+      "choice": "denied",
+      "third_party_requests": [
+        {
+          "url": "https://theme-pixel.example.test/analytics",
+          "fields": {
+            "session_marker": "SIM-001"
+          }
+        }
+      ]
+    }
+  ]
+}

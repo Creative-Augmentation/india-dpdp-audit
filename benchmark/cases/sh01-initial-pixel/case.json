@@ -1,0 +1,76 @@
+{
+  "id": "sh01-initial-pixel",
+  "stack": "shopify",
+  "mode": "repository_and_staging",
+  "audit_date": "2026-11-18",
+  "title": "Optional theme analytics runs before choice",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "theme.js"
+      },
+      {
+        "path": "browser.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [
+      {
+        "id": "SHP-01-01",
+        "severity": "high",
+        "observation": "The theme initializes optional analytics before reading consent. The sampled event occurs before choice and again on revisit with denial set.",
+        "evidence_refs": [
+          "theme.js",
+          "browser.json"
+        ],
+        "evidence_locations": {
+          "theme.js": [
+            "L2-L4"
+          ],
+          "browser.json": [
+            "/steps/0",
+            "/steps/2"
+          ]
+        },
+        "classification": "Observed technical gap. Legal applicability and phase require separate assessment."
+      }
+    ],
+    "sampled_checks": [
+      "No optional event in the sampled immediate rejection window."
+    ],
+    "unknowns": [
+      "Live theme version and production behavior are unverified."
+    ],
+    "forbidden_claims": [
+      "The consent-change listener alone prevents initial and revisit events."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Merchant developer verifies no optional events on fresh load, rejection and denied revisit, with acceptance confirming the event is observable."
+    ],
+    "supporting_evidence": {
+      "No optional event in the sampled immediate rejection window.": {
+        "browser.json": [
+          "/steps/1"
+        ]
+      },
+      "Live theme version and production behavior are unverified.": {
+        "browser.json": [
+          "/provenance"
+        ]
+      },
+      "The consent-change listener alone prevents initial and revisit events.": {
+        "theme.js": [
+          "L2-L4"
+        ]
+      },
+      "Merchant developer verifies no optional events on fresh load, rejection and denied revisit, with acceptance confirming the event is observable.": {
+        "browser.json": [
+          "/steps"
+        ]
+      }
+    }
+  }
+}

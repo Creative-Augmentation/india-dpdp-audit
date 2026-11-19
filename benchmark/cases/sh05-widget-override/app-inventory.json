@@ -1,0 +1,8 @@
+{
+  "widgets": {
+    "reviews": {
+      "purpose": "optional analytics",
+      "endpoint": "https://reviews-widget.example.test/analytics"
+    }
+  }
+}

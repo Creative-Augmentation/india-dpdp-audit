@@ -1,0 +1,15 @@
+{
+  "provenance": "Invented authorized-stage result input. No test was executed.",
+  "request": "ERASE-SIM-01",
+  "records": {
+    "order": {
+      "state": "retained",
+      "reason": "synthetic legal-hold input",
+      "review_due": "2027-01-15"
+    },
+    "fulfillment_copy": {
+      "state": "absent",
+      "verification": "independent synthetic lookup"
+    }
+  }
+}

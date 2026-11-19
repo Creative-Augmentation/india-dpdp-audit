@@ -1,0 +1,10 @@
+{
+  "provenance": "Invented authorized-stage result input. No test was executed.",
+  "root_path": "registrations/DEMO",
+  "descendant_path": "registrations/DEMO/responses/ITEM",
+  "independently_checked_after_expiry": {
+    "root": "absent",
+    "descendant": "present"
+  },
+  "holds": []
+}

@@ -35,9 +35,10 @@ cp -r /path/to/this/repo/skills/india-dpdp-audit .grok/skills/
 
 Start `grok` and ask for a DPDP audit, or open `/skills` to see it and invoke `/india-dpdp-audit` as a slash command.
 
-## UNVERIFIED
+## Verification limits
 
-- **Installing the CLI itself:** the announcement page gives `curl -fsSL https://x.ai/cli/install.sh | bash`. That pipes a script to your shell; read the script first, and confirm the command and current availability (early beta for paid subscribers at the time of checking) on xAI's site.
-- **Manual skill placement:** the docs page does not explicitly say that copying a folder into a discovery path is the install method (it describes a marketplace for plugins). It lists the paths above as where skills are loaded, so copying should work; confirm by opening `/skills`.
-- **`grok inspect`:** a third-party article says it lists discovered skills; the official page does not mention it. Not relied on here.
-- Project-level `.agents/skills` is not listed in the official page, so this guide does not use it.
+CLI installation, runtime skill discovery and relative-reference loading have not been tested for this release. The copy procedure follows the documented discovery paths; confirm the result in `/skills`. Use xAI's current official installation guidance for CLI availability and setup. This guide does not rely on undocumented inspection commands or a project-level `.agents/skills` path.
+
+## Auditing a repository safely
+
+Launch the agent from a separate trusted workspace. Inspect a read-only copy of the target outside the agent's project root; decline folder trust and do not enable the target's hooks, project settings or MCP servers. Do not start the agent inside the repository being audited. The skill cannot prevent host configuration that executes before it is loaded.

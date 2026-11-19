@@ -1,0 +1,77 @@
+{
+  "id": "wo03-checkout-divergence",
+  "stack": "woocommerce",
+  "mode": "repository_and_staging",
+  "audit_date": "2026-11-18",
+  "title": "The active checkout omits the configured purpose notice",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "settings.json"
+      },
+      {
+        "path": "checkout.html"
+      },
+      {
+        "path": "render.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [
+      {
+        "id": "WOO-03-01",
+        "severity": "medium",
+        "observation": "The sampled active checkout override requires delivery instructions and omits the configured nearby purpose statement, despite configuration describing the field as optional.",
+        "evidence_refs": [
+          "checkout.html",
+          "settings.json",
+          "render.json"
+        ],
+        "evidence_locations": {
+          "checkout.html": [
+            "L2-L5"
+          ],
+          "settings.json": [
+            "/checkout_privacy_text"
+          ],
+          "render.json": [
+            "/scope",
+            "/active_override"
+          ]
+        },
+        "classification": "Observed technical gap. Legal applicability and phase require separate assessment."
+      }
+    ],
+    "sampled_checks": [],
+    "unknowns": [
+      "Actual necessity of instructions, production rollout and other checkout variants are unverified."
+    ],
+    "forbidden_claims": [
+      "The configured privacy statement proves the sampled checkout renders it."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Store developer retests the active theme with and without instructions, checking the rendered statement, actual necessity and successful permitted path."
+    ],
+    "supporting_evidence": {
+      "Actual necessity of instructions, production rollout and other checkout variants are unverified.": {
+        "render.json": [
+          "/scope",
+          "/provenance"
+        ]
+      },
+      "The configured privacy statement proves the sampled checkout renders it.": {
+        "checkout.html": [
+          "L2-L5"
+        ]
+      },
+      "Store developer retests the active theme with and without instructions, checking the rendered statement, actual necessity and successful permitted path.": {
+        "checkout.html": [
+          "L2-L5"
+        ]
+      }
+    }
+  }
+}

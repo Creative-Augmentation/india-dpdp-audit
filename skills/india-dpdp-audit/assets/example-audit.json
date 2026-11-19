@@ -1,0 +1,170 @@
+{
+  "schema_version": "1.0",
+  "audit_date": "2026-10-27",
+  "scope": {
+    "subject": "Example workshop storefront and support site (synthetic)",
+    "authorized_domains": ["shop.example.test", "support.example.test"],
+    "modes": ["public", "repository"],
+    "platforms": ["Shopify", "Custom storefront"],
+    "authorized_repositories": [
+      {"locator": "storefront-example", "revision": "synthetic-r1"}
+    ],
+    "limitations": [
+      "Training example. All target, code, owner and observation details are fictional. Legal verification dates illustrate the format.",
+      "Public routes and a sample repository were reviewed. No forms were submitted, checkout was blocked, and production configuration and operational records were outside scope."
+    ]
+  },
+  "coverage": [
+    {
+      "id": "J-contact",
+      "name": "Custom storefront support form",
+      "status": "inspected",
+      "notes": "Reviewed visible fields and the sampled handler.",
+      "evidence_ids": ["E-form", "E-handler"]
+    },
+    {
+      "id": "J-checkout",
+      "name": "Shopify checkout",
+      "status": "blocked",
+      "notes": "A cart tied to an authorized test session was unavailable.",
+      "evidence_ids": []
+    },
+    {
+      "id": "J-retention",
+      "name": "Downstream retention and deletion",
+      "status": "not_inspected",
+      "notes": "No internal access was provided.",
+      "evidence_ids": []
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E-form",
+      "kind": "public_browser",
+      "status": "direct",
+      "captured_at": "2026-10-27T09:10:00+05:30",
+      "locator": "https://support.example.test/contact",
+      "observation": "The support form marks phone and email as mandatory. The adjacent text explains the use of email only."
+    },
+    {
+      "id": "E-handler",
+      "kind": "repository_code",
+      "status": "direct",
+      "captured_at": "2026-10-27T09:40:00+05:30",
+      "locator": "support/contact.py:20-43",
+      "repository": "storefront-example",
+      "revision": "synthetic-r1",
+      "observation": "The sampled handler rejects a missing phone value and writes it to a support ticket. Deployed behavior was not established."
+    },
+    {
+      "id": "E-owner",
+      "kind": "owner_statement",
+      "status": "asserted",
+      "captured_at": "2026-10-27T10:00:00+05:30",
+      "locator": "Synthetic briefing note, item 3",
+      "observation": "The owner says support uses the contact details to respond to enquiries."
+    }
+  ],
+  "data_map": [
+    {
+      "id": "D-contact",
+      "journey_id": "J-contact",
+      "observed_facts": ["The form requires phone and email.", "The sampled code writes the phone field to a ticket."],
+      "evidence_ids": ["E-form", "E-handler"],
+      "owner_claims": [
+        {
+          "purpose": "Responding to the enquiry",
+          "claimed_ground": "The owner proposes DPDP Act section 7(a) and has not confirmed its application.",
+          "evidence_ids": ["E-owner"]
+        }
+      ],
+      "unknowns": ["Whether support needs a phone number to respond", "Retention duration and actual deletion behavior"]
+    }
+  ],
+  "legal_ledger": [
+    {
+      "id": "L-notice",
+      "instrument": "Final DPDP Rules 2025, G.S.R. 846(E)",
+      "provision": "Rule 3",
+      "source_url": "https://www.meity.gov.in/static/uploads/2025/11/53450e6e5dc0bfa85ebd78686cadad39.pdf",
+      "verified_on": "2026-10-27",
+      "published_on": "2025-11-13",
+      "effective_on": null,
+      "preparation_on": "2027-05-13",
+      "status": "future",
+      "notes": "Rule 3 is in the eighteen-month phase for notices associated with consent. Confirm the exact commencement day and account for corrigenda. This fixture makes no finding on current-law applicability."
+    },
+    {
+      "id": "L-retention",
+      "instrument": "DPDP Act 2023 and Final DPDP Rules 2025",
+      "provision": "Section 8(7) and Rule 8",
+      "source_url": "https://www.meity.gov.in/static/uploads/2025/11/53450e6e5dc0bfa85ebd78686cadad39.pdf",
+      "verified_on": "2026-10-27",
+      "published_on": "2025-11-13",
+      "effective_on": null,
+      "preparation_on": "2027-05-13",
+      "status": "future",
+      "notes": "Erasure and retention duties are in the eighteen-month phase. Apply Act section 8(7) and Rule 8 with their conditions, legal-retention exceptions and schedule thresholds; do not apply every inactivity period to every merchant. Applicability and actual ticket deletion remain unverified."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-phone",
+      "title": "Purpose of required phone collection is unclear in the sampled form",
+      "priority": "medium",
+      "confidence": "high",
+      "observation": "The contact form required a phone number without a nearby explanation for that field.",
+      "evidence_status": "observed_gap",
+      "applicability": "unknown",
+      "applicability_reason": "The processing ground for the contact form is unverified.",
+      "legal_status": "future",
+      "evidence_ids": ["E-form", "E-handler"],
+      "legal_ids": ["L-notice"]
+    },
+    {
+      "id": "F-deletion",
+      "title": "Ticket deletion remains unverified",
+      "priority": "medium",
+      "confidence": "low",
+      "observation": "The sampled handler does not establish how stored tickets are eventually deleted.",
+      "evidence_status": "not_verified",
+      "applicability": "unknown",
+      "applicability_reason": "Retention criteria and the actual processing purpose require internal confirmation.",
+      "legal_status": "future",
+      "evidence_ids": ["E-handler"],
+      "legal_ids": ["L-retention"]
+    }
+  ],
+  "actions": [
+    {
+      "id": "A-phone",
+      "kind": "remediation",
+      "summary": "Confirm why support needs the phone field and amend the form accordingly",
+      "owner_role": "Support product owner",
+      "target": "Custom storefront contact form and its handler at support/contact.py",
+      "effort": "Small form and validation change if no downstream workflow requires a phone number.",
+      "finding_ids": ["F-phone"],
+      "dependencies": [],
+      "acceptance_criteria": ["The rendered form makes phone optional unless a documented support workflow requires it.", "The rendered form explains the purpose of any retained phone collection."],
+      "verification_steps": ["Load the approved rendered contact form without submitting it. Inspect the phone field, required indicator and adjacent notice."],
+      "verification_mode": "public",
+      "verification_status": "pending",
+      "verification_evidence_ids": []
+    },
+    {
+      "id": "A-record",
+      "kind": "evidence_request",
+      "summary": "Request the retention policy and a redacted non-production ticket deletion record",
+      "owner_role": "Support systems administrator",
+      "target": "Support ticket retention policy and synthetic deletion evidence in the ticketing system",
+      "effort": "Unknown pending access to the retention schedule and deletion records.",
+      "finding_ids": ["F-deletion"],
+      "dependencies": [],
+      "acceptance_criteria": ["The policy describes a period, trigger, owner and applicable holds.", "A redacted verification record traces a synthetic ticket through the applicable deletion steps."],
+      "verification_steps": ["Review the policy and compare a redacted verification record against its deletion triggers and holds."],
+      "verification_mode": "internal",
+      "verification_status": "blocked",
+      "verification_evidence_ids": []
+    }
+  ]
+}

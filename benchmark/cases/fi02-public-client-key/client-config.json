@@ -1,0 +1,6 @@
+{
+  "scope": "invented public client initialization metadata",
+  "apiKey": "DEMO_NOT_A_KEY",
+  "projectId": "fixture-project",
+  "authDomain": "login.example.test"
+}

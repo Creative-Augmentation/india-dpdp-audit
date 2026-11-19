@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "development": [
+    {
+      "id": "sh01-initial-pixel",
+      "stack": "shopify",
+      "path": "cases/sh01-initial-pixel/case.json"
+    },
+    {
+      "id": "sh02-choice-cycle",
+      "stack": "shopify",
+      "path": "cases/sh02-choice-cycle/case.json"
+    },
+    {
+      "id": "sh03-app-webhooks",
+      "stack": "shopify",
+      "path": "cases/sh03-app-webhooks/case.json"
+    },
+    {
+      "id": "sh04-merchant-scope",
+      "stack": "shopify",
+      "path": "cases/sh04-merchant-scope/case.json"
+    },
+    {
+      "id": "sh05-widget-override",
+      "stack": "shopify",
+      "path": "cases/sh05-widget-override/case.json"
+    },
+    {
+      "id": "sh06-region-unavailable",
+      "stack": "shopify",
+      "path": "cases/sh06-region-unavailable/case.json"
+    },
+    {
+      "id": "wo01-blank-retention",
+      "stack": "woocommerce",
+      "path": "cases/wo01-blank-retention/case.json"
+    },
+    {
+      "id": "wo02-custom-erasure",
+      "stack": "woocommerce",
+      "path": "cases/wo02-custom-erasure/case.json"
+    },
+    {
+      "id": "wo03-checkout-divergence",
+      "stack": "woocommerce",
+      "path": "cases/wo03-checkout-divergence/case.json"
+    },
+    {
+      "id": "wo04-erasure-accounted",
+      "stack": "woocommerce",
+      "path": "cases/wo04-erasure-accounted/case.json"
+    },
+    {
+      "id": "wo05-plugin-inventory-blocked",
+      "stack": "woocommerce",
+      "path": "cases/wo05-plugin-inventory-blocked/case.json"
+    },
+    {
+      "id": "wo06-admin-controls",
+      "stack": "woocommerce",
+      "path": "cases/wo06-admin-controls/case.json"
+    },
+    {
+      "id": "fi01-root-deletion",
+      "stack": "firebase",
+      "path": "cases/fi01-root-deletion/case.json"
+    },
+    {
+      "id": "fi02-public-client-key",
+      "stack": "firebase",
+      "path": "cases/fi02-public-client-key/case.json"
+    },
+    {
+      "id": "fi03-server-iam",
+      "stack": "firebase",
+      "path": "cases/fi03-server-iam/case.json"
+    },
+    {
+      "id": "fi04-staged-negative",
+      "stack": "firebase",
+      "path": "cases/fi04-staged-negative/case.json"
+    },
+    {
+      "id": "fi05-staged-deletion",
+      "stack": "firebase",
+      "path": "cases/fi05-staged-deletion/case.json"
+    },
+    {
+      "id": "fi06-expired-descendants",
+      "stack": "firebase",
+      "path": "cases/fi06-expired-descendants/case.json"
+    },
+    {
+      "id": "ge01-purpose-mismatch",
+      "stack": "generic",
+      "path": "cases/ge01-purpose-mismatch/case.json"
+    },
+    {
+      "id": "ge02-dynamic-403",
+      "stack": "generic",
+      "path": "cases/ge02-dynamic-403/case.json"
+    },
+    {
+      "id": "ge03-injection",
+      "stack": "generic",
+      "path": "cases/ge03-injection/case.json"
+    },
+    {
+      "id": "ge04-keyword-comment",
+      "stack": "generic",
+      "path": "cases/ge04-keyword-comment/case.json"
+    },
+    {
+      "id": "ge05-phase-ledger",
+      "stack": "generic",
+      "path": "cases/ge05-phase-ledger/case.json"
+    },
+    {
+      "id": "ge06-withdrawal-revisit",
+      "stack": "generic",
+      "path": "cases/ge06-withdrawal-revisit/case.json"
+    }
+  ],
+  "held_out": [
+    {
+      "id": "sh-held-out-01",
+      "stack": "shopify",
+      "status": "pending"
+    },
+    {
+      "id": "sh-held-out-02",
+      "stack": "shopify",
+      "status": "pending"
+    },
+    {
+      "id": "wo-held-out-01",
+      "stack": "woocommerce",
+      "status": "pending"
+    },
+    {
+      "id": "wo-held-out-02",
+      "stack": "woocommerce",
+      "status": "pending"
+    },
+    {
+      "id": "fi-held-out-01",
+      "stack": "firebase",
+      "status": "pending"
+    },
+    {
+      "id": "fi-held-out-02",
+      "stack": "firebase",
+      "status": "pending"
+    },
+    {
+      "id": "ge-held-out-01",
+      "stack": "generic",
+      "status": "pending"
+    },
+    {
+      "id": "ge-held-out-02",
+      "stack": "generic",
+      "status": "pending"
+    }
+  ]
+}

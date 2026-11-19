@@ -1,0 +1,8 @@
+{
+  "role": "merchant_only",
+  "app_store_apps_developed": [],
+  "in_scope": [
+    "merchant orders",
+    "synthetic fulfillment app"
+  ]
+}

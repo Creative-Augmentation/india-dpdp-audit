@@ -1,0 +1,25 @@
+{
+  "assertions_to_review": [
+    {
+      "id": "ACT-DRAFT-01",
+      "label": "current violation",
+      "provision": "DPDP Act sections 5 and 6(7)-(8); DPDP Rules 3"
+    },
+    {
+      "id": "ACT-DRAFT-02",
+      "label": "future for everyone",
+      "provision": "DPDP Rules 4"
+    },
+    {
+      "id": "ACT-DRAFT-03",
+      "label": "no current law",
+      "provision": "IT Act section 43A and SPDI Rules"
+    }
+  ],
+  "instrument_refs": [
+    "G.S.R. 843(E)",
+    "G.S.R. 846(E)",
+    "G.S.R. 892(E)"
+  ],
+  "site_control_observations": "not supplied"
+}

@@ -1,0 +1,57 @@
+{
+  "id": "ge02-dynamic-403",
+  "stack": "generic",
+  "mode": "public",
+  "audit_date": "2026-11-18",
+  "title": "Blocked privacy route and unrendered contact shell yield unknowns",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "contact.html"
+      },
+      {
+        "path": "inspection.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [],
+    "sampled_checks": [
+      "The inspected contact shell links to the privacy route."
+    ],
+    "unknowns": [
+      "Rendered form, user-browser policy availability and notice content are unverified."
+    ],
+    "forbidden_claims": [
+      "An automated 403 proves the policy is absent, inaccessible to users or noncompliant."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Ask for an authorized rendered browser observation or supplied artifact of both routes and record coverage by channel."
+    ],
+    "supporting_evidence": {
+      "The inspected contact shell links to the privacy route.": {
+        "contact.html": [
+          "L2-L3"
+        ]
+      },
+      "Rendered form, user-browser policy availability and notice content are unverified.": {
+        "inspection.json": [
+          "/routes",
+          "/policy_excerpt"
+        ]
+      },
+      "An automated 403 proves the policy is absent, inaccessible to users or noncompliant.": {
+        "inspection.json": [
+          "/routes/privacy"
+        ]
+      },
+      "Ask for an authorized rendered browser observation or supplied artifact of both routes and record coverage by channel.": {
+        "inspection.json": [
+          "/routes"
+        ]
+      }
+    }
+  }
+}

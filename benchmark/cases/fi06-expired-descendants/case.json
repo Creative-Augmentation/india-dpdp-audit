@@ -1,0 +1,71 @@
+{
+  "id": "fi06-expired-descendants",
+  "stack": "firebase",
+  "mode": "repository_and_staging",
+  "audit_date": "2026-11-18",
+  "title": "Firestore TTL leaves an expired document’s scoped descendant",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "ttl-policy.json"
+      },
+      {
+        "path": "ttl-results.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [
+      {
+        "id": "FBR-06-01",
+        "severity": "high",
+        "observation": "The root is absent after the sampled expiry while the mapped descendant remains beyond the same approved deadline, with no hold.",
+        "evidence_refs": [
+          "ttl-policy.json",
+          "ttl-results.json"
+        ],
+        "evidence_locations": {
+          "ttl-policy.json": [
+            "/descendant_schedule",
+            "/descendant_cleanup"
+          ],
+          "ttl-results.json": [
+            "/independently_checked_after_expiry",
+            "/holds"
+          ]
+        },
+        "classification": "Observed technical gap. Legal applicability and phase require separate assessment."
+      }
+    ],
+    "sampled_checks": [],
+    "unknowns": [
+      "Production outcome and general TTL processing latency are unverified."
+    ],
+    "forbidden_claims": [
+      "Root TTL implies recursive deletion or exact immediate expiry."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Data owner maps descendants to an explicit expiry mechanism and verifies root and descendant outcomes after an agreed synthetic processing interval."
+    ],
+    "supporting_evidence": {
+      "Production outcome and general TTL processing latency are unverified.": {
+        "ttl-results.json": [
+          "/provenance"
+        ]
+      },
+      "Root TTL implies recursive deletion or exact immediate expiry.": {
+        "ttl-results.json": [
+          "/independently_checked_after_expiry"
+        ]
+      },
+      "Data owner maps descendants to an explicit expiry mechanism and verifies root and descendant outcomes after an agreed synthetic processing interval.": {
+        "ttl-policy.json": [
+          "/descendant_schedule",
+          "/descendant_cleanup"
+        ]
+      }
+    }
+  }
+}

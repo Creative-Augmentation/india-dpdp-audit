@@ -1,0 +1,85 @@
+{
+  "id": "fi01-root-deletion",
+  "stack": "firebase",
+  "mode": "repository_and_staging",
+  "audit_date": "2026-11-18",
+  "title": "Auth and root deletion leave descendants, files and CRM copies",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "deletion-config.json"
+      },
+      {
+        "path": "deletion.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [
+      {
+        "id": "FBR-01-01",
+        "severity": "critical",
+        "observation": "The sampled request removes Auth and the Firestore root while leaving the mapped descendant, Storage object and CRM copy without recorded exceptions.",
+        "evidence_refs": [
+          "deletion-config.json",
+          "deletion.json"
+        ],
+        "evidence_locations": {
+          "deletion-config.json": [
+            "/delete_mode",
+            "/firestore_paths",
+            "/storage_paths",
+            "/crm_dispatch"
+          ],
+          "deletion.json": [
+            "/before",
+            "/after",
+            "/locations",
+            "/exceptions"
+          ]
+        },
+        "classification": "Observed technical gap. Legal applicability and phase require separate assessment."
+      }
+    ],
+    "sampled_checks": [
+      "Auth and the root document are independently absent in the post-check."
+    ],
+    "unknowns": [
+      "Production behavior and backup expiry are unverified."
+    ],
+    "forbidden_claims": [
+      "Deleting Auth or the Firestore root proves recursive or downstream deletion."
+    ],
+    "seeded_criticals": [
+      "FBR-01-01"
+    ],
+    "plan_acceptance_checks": [
+      "Data engineer and privacy operations repeat with a synthetic UID, independently check all mapped targets and record each exception and downstream retry."
+    ],
+    "supporting_evidence": {
+      "Auth and the root document are independently absent in the post-check.": {
+        "deletion.json": [
+          "/after/auth",
+          "/after/root"
+        ]
+      },
+      "Production behavior and backup expiry are unverified.": {
+        "deletion.json": [
+          "/provenance"
+        ]
+      },
+      "Deleting Auth or the Firestore root proves recursive or downstream deletion.": {
+        "deletion.json": [
+          "/after"
+        ]
+      },
+      "Data engineer and privacy operations repeat with a synthetic UID, independently check all mapped targets and record each exception and downstream retry.": {
+        "deletion.json": [
+          "/locations",
+          "/exceptions"
+        ]
+      }
+    }
+  }
+}

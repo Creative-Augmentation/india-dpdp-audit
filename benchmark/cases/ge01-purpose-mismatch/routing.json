@@ -1,0 +1,16 @@
+{
+  "provenance": "Invented authorized-stage result input. No test was executed.",
+  "field": "contact",
+  "recipients": [
+    {
+      "destination": "support.example.test",
+      "purpose": "enquiry"
+    },
+    {
+      "destination": "promotions.example.test",
+      "purpose": "unrelated promotions"
+    }
+  ],
+  "separate_promotion_choice": "none",
+  "exception": null
+}

@@ -1,0 +1,13 @@
+{
+  "provenance": "Invented authorized-stage result input. No test was executed.",
+  "final_status": "complete",
+  "before": {
+    "wp_notes": "present",
+    "external_notes": "present"
+  },
+  "after": {
+    "wp_notes": "absent",
+    "external_notes": "present"
+  },
+  "exception": null
+}

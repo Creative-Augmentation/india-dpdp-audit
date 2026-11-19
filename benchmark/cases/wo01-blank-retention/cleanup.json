@@ -1,0 +1,20 @@
+{
+  "provenance": "Invented authorized-stage result input. No test was executed.",
+  "job": "daily_privacy_cleanup",
+  "completed": true,
+  "samples": {
+    "failed": {
+      "age_days": 21,
+      "outcome": "active",
+      "hold": false
+    },
+    "pending": {
+      "age_days": 21,
+      "outcome": "trash"
+    },
+    "completed": {
+      "age_days": 100,
+      "outcome": "anonymized"
+    }
+  }
+}

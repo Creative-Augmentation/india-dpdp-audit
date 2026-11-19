@@ -1,0 +1,10 @@
+{
+  "provenance": "Invented authorized-stage result input. No test was executed.",
+  "expected": {
+    "unset": "no optional requests",
+    "granted": "optional allowed",
+    "denied": "no optional requests"
+  },
+  "persisted_before_revisit": "denied",
+  "scope": "single synthetic browser and one endpoint"
+}

@@ -1,0 +1,4 @@
+# Synthetic App Store app configuration. No remote app is configured by this file.
+[[webhooks.subscriptions]]
+compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+uri = "/privacy/webhooks"

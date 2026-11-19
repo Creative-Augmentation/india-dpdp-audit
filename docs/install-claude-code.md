@@ -18,7 +18,7 @@ mkdir -p ~/.claude/skills
 cp -r skills/india-dpdp-audit ~/.claude/skills/
 ```
 
-The result is `~/.claude/skills/india-dpdp-audit/SKILL.md` and `~/.claude/skills/india-dpdp-audit/references/legal-baseline.md`. The skill's `name` is `india-dpdp-audit`, which matches the folder name.
+The result is the complete `~/.claude/skills/india-dpdp-audit/` package: `SKILL.md`, references, assets, scripts and licence. Keep the folder intact. The skill's `name` is `india-dpdp-audit`, which matches the folder name.
 
 ## Steps (single project)
 
@@ -33,7 +33,10 @@ Start Claude Code and either ask for a DPDP audit (Claude loads the skill when t
 
 Per the docs, changes under `~/.claude/skills/` or `.claude/skills/` are picked up without a restart; a skills folder created after Claude Code started may need a restart.
 
-## UNVERIFIED
+## Verification limits
 
-- The restart note above: the docs say live edits are picked up; I did not verify the case of a brand-new top-level `skills` folder. If the skill does not appear, restart Claude Code.
-- I read the first 100,000 of about 118,000 characters of the docs page; check the page if you rely on anything not listed here (for example enterprise paths).
+These paths were checked against the documentation on the recorded date. Runtime discovery, including a newly created top-level skills folder, has not been tested for this release. Restart Claude Code if the skill does not appear. Enterprise paths and other installation modes are outside this guide's verified scope.
+
+## Auditing a repository safely
+
+Launch the agent from a separate trusted workspace. Inspect a read-only copy of the target outside the agent's project root; decline folder trust and do not enable the target's hooks, project settings or MCP servers. Do not start the agent inside the repository being audited. The skill cannot prevent host configuration that executes before it is loaded.

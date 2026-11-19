@@ -1,0 +1,62 @@
+{
+  "id": "fi03-server-iam",
+  "stack": "firebase",
+  "mode": "repository",
+  "audit_date": "2026-11-18",
+  "title": "Server authorization evidence is missing from a rules-only handoff",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "repository-map.json"
+      },
+      {
+        "path": "firestore.rules"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [],
+    "sampled_checks": [
+      "The supplied client rules compare the signed-in UID with the profile path for a read."
+    ],
+    "unknowns": [
+      "Server authorization, server IAM and version of deployed client rules are unverified."
+    ],
+    "forbidden_claims": [
+      "The client Firestore rule controls server SDK privileges, or its presence proves production access restrictions."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Backend and security owners provide separately reviewed handler authorization and service-account IAM evidence, and verify deployed rule version."
+    ],
+    "supporting_evidence": {
+      "The supplied client rules compare the signed-in UID with the profile path for a read.": {
+        "firestore.rules": [
+          "L4-L5"
+        ]
+      },
+      "Server authorization, server IAM and version of deployed client rules are unverified.": {
+        "repository-map.json": [
+          "/server_data_access",
+          "/server_iam_export",
+          "/server_handler",
+          "/deployed_rules"
+        ]
+      },
+      "The client Firestore rule controls server SDK privileges, or its presence proves production access restrictions.": {
+        "repository-map.json": [
+          "/server_data_access",
+          "/deployed_rules"
+        ]
+      },
+      "Backend and security owners provide separately reviewed handler authorization and service-account IAM evidence, and verify deployed rule version.": {
+        "repository-map.json": [
+          "/server_iam_export",
+          "/server_handler",
+          "/deployed_rules"
+        ]
+      }
+    }
+  }
+}

@@ -36,10 +36,12 @@ In Agent chat, type `/` and search for `india-dpdp-audit` to attach it to a mess
 
 ## Workaround if your Cursor version has no skills feature
 
-Not needed if the steps above work. Otherwise, Cursor rules are `.mdc` files in `.cursor/rules/` (a plain `.md` there is ignored) with `description`, `globs`, `alwaysApply` frontmatter, and Cursor also reads `AGENTS.md` in the project root. **Workaround:** create `.cursor/rules/india-dpdp-audit.mdc` with a `description` line and `alwaysApply: false`, and put the contents of `skills/india-dpdp-audit/SKILL.md` (without its own frontmatter) in the body; keep `legal-baseline.md` in the project and point to it by path. This is untested.
+Not needed if the steps above work. **Untested workaround:** keep the entire skill folder at `skills/india-dpdp-audit/` in your project, including its references, assets, scripts and licence. Create `.cursor/rules/india-dpdp-audit.mdc` with a `description` line and `alwaysApply: false`. Its body should instruct the agent to read `skills/india-dpdp-audit/SKILL.md` when the user requests a DPDP audit, and resolve that skill's relative links from its folder. Do not flatten the skill into the rule or retain only the legal reference; the platform and output-contract links need the complete package. Attach this rule explicitly if automatic selection is unavailable. This fallback has not been runtime-tested in Cursor.
 
-## UNVERIFIED
+## Verification limits
 
-- I did not run Cursor; check that `/india-dpdp-audit` appears in Agent chat after copying (a restart or window reload may be needed).
-- The skills page did not say whether Cursor needs a setting enabled for skills; check Cursor's settings if the skill does not appear.
-- The relative link from `SKILL.md` to `references/legal-baseline.md` is expected to resolve inside the skill folder; not tested.
+Runtime discovery and relative-reference loading in Cursor have not been tested for this release. After copying, check that the skill appears in Agent chat and its references can be read. A restart, window reload or version-specific setting may be needed; consult the current Cursor documentation if discovery fails. The rules workaround above remains untested.
+
+## Auditing a repository safely
+
+Launch the agent from a separate trusted workspace. Inspect a read-only copy of the target outside the agent's project root; decline folder trust and do not enable the target's hooks, project settings or MCP servers. Do not start the agent inside the repository being audited. The skill cannot prevent host configuration that executes before it is loaded.

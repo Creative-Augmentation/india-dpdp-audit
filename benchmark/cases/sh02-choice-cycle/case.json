@@ -1,0 +1,59 @@
+{
+  "id": "sh02-choice-cycle",
+  "stack": "shopify",
+  "mode": "staging",
+  "audit_date": "2026-11-18",
+  "title": "Theme and app analytics respect the sampled cycle",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "browser.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [],
+    "sampled_checks": [
+      "No optional request before choice, after rejection, after withdrawal or on the sampled denied revisits. The acceptance step emits the expected app-pixel event."
+    ],
+    "unknowns": [
+      "Backend deletion and production rollout are unverified."
+    ],
+    "forbidden_claims": [
+      "The app pixel never transmits or the storefront is fully compliant."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "Keep the allowed step as a positive control when repeating the denied checks after integration changes."
+    ],
+    "supporting_evidence": {
+      "No optional request before choice, after rejection, after withdrawal or on the sampled denied revisits. The acceptance step emits the expected app-pixel event.": {
+        "browser.json": [
+          "/steps/0",
+          "/steps/1",
+          "/steps/2",
+          "/steps/3",
+          "/steps/4",
+          "/steps/5"
+        ]
+      },
+      "Backend deletion and production rollout are unverified.": {
+        "browser.json": [
+          "/scope"
+        ]
+      },
+      "The app pixel never transmits or the storefront is fully compliant.": {
+        "browser.json": [
+          "/steps/3",
+          "/scope"
+        ]
+      },
+      "Keep the allowed step as a positive control when repeating the denied checks after integration changes.": {
+        "browser.json": [
+          "/steps/3"
+        ]
+      }
+    }
+  }
+}

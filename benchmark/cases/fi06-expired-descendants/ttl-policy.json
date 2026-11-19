@@ -1,0 +1,7 @@
+{
+  "scope": "synthetic expiry schedule for root and descendants",
+  "collection_group": "registrations",
+  "expiry_field": "expiresAt",
+  "descendant_schedule": "same deadline",
+  "descendant_cleanup": "none configured"
+}

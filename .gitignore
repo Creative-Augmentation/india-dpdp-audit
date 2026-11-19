@@ -6,3 +6,9 @@ audit-reports/
 .DS_Store
 .env
 .env.*
+
+# Local Python environment and test caches
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/

@@ -1,0 +1,76 @@
+{
+  "id": "sh03-app-webhooks",
+  "stack": "shopify",
+  "mode": "repository_and_staging",
+  "audit_date": "2026-11-18",
+  "title": "App Store integration acknowledges erasure without propagating it",
+  "input": {
+    "scope": "Synthetic supplied artifacts only. Inspect offline. No live actions are authorized.",
+    "artifacts": [
+      {
+        "path": "shopify.app.toml"
+      },
+      {
+        "path": "erasure.json"
+      }
+    ]
+  },
+  "expected": {
+    "findings": [
+      {
+        "id": "SHP-03-01",
+        "severity": "high",
+        "observation": "The App Store app returns HTTP 200 and removes the app profile, but the mapped synthetic export remains without a recorded exception.",
+        "evidence_refs": [
+          "erasure.json"
+        ],
+        "evidence_locations": {
+          "erasure.json": [
+            "/delivery",
+            "/inventory",
+            "/after",
+            "/retained_exception"
+          ]
+        },
+        "classification": "Observed technical gap. Legal applicability and phase require separate assessment."
+      }
+    ],
+    "sampled_checks": [
+      "All three app compliance topics appear in the supplied configuration."
+    ],
+    "unknowns": [
+      "Deployment of subscriptions and outcomes for the two untested topics are unverified."
+    ],
+    "forbidden_claims": [
+      "HTTP 200 proves erasure is complete."
+    ],
+    "seeded_criticals": [],
+    "plan_acceptance_checks": [
+      "App developer verifies subscription deployment separately and accounts for the export after a synthetic request, with completion or a documented exception."
+    ],
+    "supporting_evidence": {
+      "All three app compliance topics appear in the supplied configuration.": {
+        "shopify.app.toml": [
+          "L2-L4"
+        ]
+      },
+      "Deployment of subscriptions and outcomes for the two untested topics are unverified.": {
+        "shopify.app.toml": [
+          "L2-L4"
+        ]
+      },
+      "HTTP 200 proves erasure is complete.": {
+        "erasure.json": [
+          "/delivery",
+          "/after/synthetic_export"
+        ]
+      },
+      "App developer verifies subscription deployment separately and accounts for the export after a synthetic request, with completion or a documented exception.": {
+        "erasure.json": [
+          "/inventory",
+          "/after"
+        ]
+      }
+    }
+  }
+}

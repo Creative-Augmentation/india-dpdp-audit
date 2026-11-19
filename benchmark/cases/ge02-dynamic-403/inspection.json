@@ -1,0 +1,16 @@
+{
+  "provenance": "Invented offline observations. No real requests made.",
+  "routes": {
+    "contact": {
+      "http": 200,
+      "url": "https://contact.example.test/contact",
+      "rendering": "not_available"
+    },
+    "privacy": {
+      "http": 403,
+      "url": "https://contact.example.test/privacy",
+      "channel": "automated fetch only"
+    }
+  },
+  "policy_excerpt": null
+}

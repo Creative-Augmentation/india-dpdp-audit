@@ -1,0 +1,7 @@
+{
+  "provenance": "Invented authorized-stage result input. No test was executed.",
+  "journey": "checkout",
+  "rendered_fragment": "checkout.html",
+  "active_override": "fixture-checkout",
+  "scope": "entire sampled form"
+}

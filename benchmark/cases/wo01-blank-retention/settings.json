@@ -1,0 +1,9 @@
+{
+  "view": "WooCommerce > Settings > Accounts & Privacy > Personal data retention",
+  "failed_orders_days": "",
+  "pending_orders_days": 14,
+  "completed_orders_days": 90,
+  "approved_schedule_days": {
+    "failed_orders": 14
+  }
+}
