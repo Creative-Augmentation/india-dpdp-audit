@@ -52,6 +52,11 @@ class AuditRecordTests(unittest.TestCase):
             "Owner-asserted ground", "Preparation date", "Verification step", "Effort", "Target",
         ):
             self.assertIn(marker, result.stdout)
+        questions = result.stdout.split("## Open questions\n", 1)[1].split("\n## ", 1)[0]
+        for identifier in ("J-retention", "D-contact"):
+            with self.subTest(identifier=identifier):
+                entry = questions.split(f"### {identifier}", 1)[1].split("\n### ", 1)[0]
+                self.assertIn("**Next step**", entry)
 
     def test_dangling_and_duplicate_references(self):
         self.record["actions"][0]["finding_ids"].append("F-missing")
@@ -195,7 +200,7 @@ class AuditRecordTests(unittest.TestCase):
                 finding["priority"] = priority
                 self.assertInvalid(f"{priority} priority requires direct evidence")
 
-    def test_direct_evidence_of_a_different_fact_does_not_raise_an_open_question(self):
+    def test_not_verified_cannot_be_high_even_with_direct_evidence(self):
         finding = self.record["findings"][1]
         finding["priority"] = "high"
         self.assertInvalid("not_verified findings cannot have high or critical priority")
@@ -211,13 +216,43 @@ class AuditRecordTests(unittest.TestCase):
 
     def test_unknown_item_cannot_claim_compliance_or_no_gaps(self):
         finding = self.record["findings"][1]
-        for wording in ("The site is compliant", "No gaps were found"):
+        for wording in (
+            "The site is compliant", "No gaps were found", "No gap was found", "Fully complies",
+            "In compliance", "Compliance confirmed", "zero gaps", "Ｃｏｍｐｌｉａｎｔ", "com\u00adpliant",
+            "Could not verify whether the site is compliant. No gap was found.",
+        ):
             with self.subTest(wording=wording):
                 finding["observation"] = wording
                 self.assertInvalid("F-deletion: unsupported conclusion")
-        finding["observation"] = "Could not verify deletion."
-        self.record["scope"]["limitations"].append("No gaps were found")
-        self.assertInvalid("scope.limitations: unsupported conclusion")
+
+    def test_open_questions_accept_qualified_wording(self):
+        for wording in (
+            "Could not verify whether the site is compliant", "The service is not compliant",
+            "Check if the site is compliant", "Could not verify the site is compliant", "The check is un compliant",
+        ):
+            with self.subTest(wording=wording):
+                self.record["findings"][1]["observation"] = wording
+                self.assertEqual(audit.validate(self.record, self.validator), [])
+
+    def test_other_open_question_fields_cannot_claim_compliance_or_no_gaps(self):
+        for label, item, field, value in (
+            ("J-checkout", self.record["coverage"][1], "notes", "Compliance confirmed"),
+            ("D-contact", self.record["data_map"][0], "unknowns", ["No gap was found"]),
+            ("F-phone", self.record["findings"][0], "applicability_reason", "Fully complies"),
+            ("scope.subject", self.record["scope"], "subject", "Compliant storefront"),
+            ("scope.limitations", self.record["scope"], "limitations", ["No gaps were found"]),
+        ):
+            with self.subTest(field=field), patch.dict(item, {field: value}):
+                self.assertInvalid(f"{label}: unsupported conclusion")
+
+    def test_control_actions_and_evidence_cannot_claim_compliance_or_no_gaps(self):
+        self.record = audit.read_json(CONTROL)
+        for item, field, value in (
+            (self.record["actions"][0], "summary", "Confirm no gaps"),
+            (self.record["evidence"][0], "observation", "Compliance confirmed"),
+        ):
+            with self.subTest(field=field), patch.dict(item, {field: value}):
+                self.assertInvalid(f"{item['id']}: unsupported conclusion")
 
     def test_control_has_zero_gaps_and_lists_open_questions_with_next_steps(self):
         self.record = audit.read_json(CONTROL)

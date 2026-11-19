@@ -58,11 +58,11 @@ _DPDP_HINT = re.compile(rf"(?:{_NAME}|{_SHORT_ACT}|{_SHORT_RULES}|{_ACT_NUMBER})
 _OFFICIAL_HOSTS = ("meity.gov.in", "meity.nic.in", "egazette.gov.in", "egazette.nic.in",
                    "indiacode.gov.in", "indiacode.nic.in", "pib.gov.in", "pib.nic.in")
 _OTHER_INSTRUMENT = re.compile(
-    rf"^(?:spdi\s+rules\b|{_GSR}313\b"
+    rf"^(?:the\s+)?(?:spdi\s+rules\b|{_GSR}313\b"
     r"|information technology(?:\s+\([^()]+\))?\s+rules\b.*\b2011\b"
     r"|(?:information technology|it)\s+act\b.*\b2000\b"
     r"|cert[ -]in\b.*\b(?:directions?|2022)\b"
-    r"|consumer protection\s*\(e[ -]commerce\)\s*rules[,\s-]*2020\b"
+    r"|consumer protection\s*\(e[ \u2010\u2011\u2013-]commerce\)\s*rules[,\s-]*2020\b"
     r"|consumer protection act[,\s-]*2019\b"
     r"|(?:payment and settlement systems|pss) act[,\s-]*2007\b"
     r"|legal metrology(?:\s*\(packaged commodities\))?\s+rules[,\s-]*2011\b"
@@ -80,7 +80,11 @@ _CITATION = re.compile(
     r"(?:\s*(?:[-–—]|\bto\b|से)\s*(?P<end>[1-9][0-9]?))?",
     re.I,
 )
-_CITATION_IN_PROSE = re.compile(rf"(?<!\w)({_CITATION_LABEL})[\s-]*0*([0-9]{{1,2}})(?!\w)", re.I)
+_CITATION_IN_PROSE = re.compile(
+    rf"(?<!\w)({_CITATION_LABEL}|r(?=\s*[0-9]))[\s-]*"
+    r"(?:(?:no\.|(?:no|number)\b)\s*)?0*([0-9]{1,2})(?!\w)",
+    re.I,
+)
 _SEPARATOR = re.compile(r"\s*(?:[,;&]\s*(?:and\b)?|\band\b| और )\s*", re.I)
 # Selected lookalikes for the letters used in DPDP, DPDPA and DPDPR.
 _CONFUSABLES = str.maketrans("ДдԀԁРрΡρАаΑαᎡꓣ", "DdDdPpPpAaAaRR")

@@ -55,6 +55,8 @@ Use the finding evidence status to distinguish the results below. Leave claims t
 
 Rate observed gaps by their demonstrated impact and keep legal timing and applicability separate.
 
+High and critical priorities require linked direct evidence. Version 1.0 records with a `high` `not_verified` finding now fail validation.
+
 | Priority | Observable test |
 | --- | --- |
 | Critical | The observation shows harm directly. For example, an unauthenticated response exposes personal data, or a network capture shows personal-data processing continuing after the visitor refused it. |

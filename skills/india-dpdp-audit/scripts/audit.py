@@ -11,7 +11,7 @@ from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from textwrap import shorten
 from typing import Any
-from unicodedata import category
+from unicodedata import category, normalize
 from urllib.parse import urlsplit
 
 from jsonschema import Draft202012Validator
@@ -23,7 +23,10 @@ legal_phases = module_from_spec(LEGAL_PHASES_SPEC)
 LEGAL_PHASES_SPEC.loader.exec_module(legal_phases)
 PRIORITY = {"critical": 0, "high": 1, "medium": 2, "low": 3, "informational": 4}
 IMPACT_PRIORITIES = {"critical", "high"}
-UNSUPPORTED_CONCLUSION = re.compile(r"(?<![\w-])(?:compliant|no[\s-]+gaps)\b", re.IGNORECASE)
+UNSUPPORTED_CONCLUSION = re.compile(r"(?<![\w-])(?:compl(?:iant|ies|iance)|(?:no|zero)[\s-]+gaps?)\b", re.I)
+CONCLUSION_QUALIFIER = re.compile(
+    r"\b(?:whether|if|not|un|could\s+not\s+verify)\b(?:[\s-]+\w+){0,3}[\s-]*\Z", re.I
+)
 EVIDENCE_STATUS_ORDER = {
     "observed_gap": 0, "not_verified": 1, "meets_sampled_check": 2, "not_applicable": 3,
 }
@@ -95,6 +98,14 @@ def capture_time(evidence):
     return captured
 
 
+def has_unsupported_conclusion(text):
+    normalized = normalize("NFKC", "".join(char for char in text if category(char) != "Cf"))
+    return any(
+        not CONCLUSION_QUALIFIER.search(normalized, 0, match.start())
+        for match in UNSUPPORTED_CONCLUSION.finditer(normalized)
+    )
+
+
 def check_consistency(record: dict[str, Any]) -> list[str]:
     errors = []
     audit_date = date.fromisoformat(record["audit_date"])
@@ -141,7 +152,7 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
         return any(item["status"] == "direct" for item in items)
 
     def check_open_question(label, *texts):
-        if any(UNSUPPORTED_CONCLUSION.search(text) for text in texts):
+        if any(has_unsupported_conclusion(text) for text in texts):
             errors.append(f"{label}: unsupported conclusion over an unverified item. State what could not be verified.")
 
     has_open_questions = not record["coverage"]
@@ -149,6 +160,7 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
     capture_dates = {}
     for evidence in record["evidence"]:
         identifier = evidence["id"]
+        check_open_question(identifier, evidence["observation"])
         try:
             captured = capture_time(evidence)
             capture_times[identifier] = captured
@@ -270,10 +282,10 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
         findings = references(action, "finding_ids", "findings")
         findings_with_actions.update(action["finding_ids"])
         prerequisites = references(action, "dependencies", "actions")
-        if action["kind"] == "remediation" and any(
-            finding["evidence_status"] == "not_verified" for finding in findings
-        ):
-            errors.append(f"{identifier}: not_verified findings require an evidence request")
+        if any(finding["evidence_status"] == "not_verified" for finding in findings):
+            check_open_question(identifier, action["summary"])
+            if action["kind"] == "remediation":
+                errors.append(f"{identifier}: not_verified findings require an evidence request")
         dependencies[identifier] = action["dependencies"]
         evidence = references(action, "verification_evidence_ids", "evidence")
         matching_evidence = [

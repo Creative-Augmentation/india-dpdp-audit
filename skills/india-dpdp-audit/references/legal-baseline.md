@@ -22,6 +22,8 @@ Use the [evidence tiers and severity rubric](output-contract.md#evidence-labels)
 
 Use full instrument titles and citation-only DPDP provisions in the legal ledger. The pinned commencement checker recognizes short DPDP titles when they include the applicable year or have Indian context. If an unidentified source uses a numbered citation that could refer to DPDP, identify the instrument or retain uncertainty without a commencement date. The allowlist covers expressly named instruments including SPDI, the IT Act, CERT-In directions, consumer protection and e-commerce law, the Payment and Settlement Systems Act, Legal Metrology Rules, and the UK and Singapore data protection Acts. Record those separately with their own verified sources and effective dates. Where a pinned citation needs review, the report displays the warning with its registry status intact.
 
+These checks enforce consistency. Confirm the accuracy of supplied metadata, and independently verify instrument titles, including titles outside the checker's coverage.
+
 ## October 2026 Removal of Difficulties Order
 
 [Official S.O. 5458(E)](https://www.meity.gov.in/static/uploads/2026/10/daf495a7b5798a3dfa72a944b51fc176.pdf), order dated 5 October 2026, Gazette issue dated 6 October, digitally published 7 October: verified English text on PDF pages 2–3. It clarifies section 9(1)'s parallel reference to a child or a person with disability who has a lawful guardian, and changes section 10(2)(c)(ii) to periodic data audit. It contains no change to the substantive commencement timetable. Apply these corrections rather than treating the supplied 2023 Act PDF as consolidated current law.
