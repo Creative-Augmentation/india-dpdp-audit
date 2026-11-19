@@ -6,15 +6,16 @@ import os
 import sys
 from pathlib import Path
 
+from collector.audit_record import build_audit_record
 from merchant.report import render_summary
 
 
-def parse_origin(url: str, *, allow_loopback: bool) -> str:
-    from collector.browser import _approved_url, _origin, _require_public_resolution
+def parse_origin(url: str) -> str:
+    from collector.browser import _approved_url, _origin, _require_https
 
     origin = _origin(url)
     _approved_url(url, origin)
-    _require_public_resolution(origin, allow_loopback)
+    _require_https(origin)
     return origin
 
 
@@ -26,10 +27,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("url", metavar="URL", help="Entry page to sample")
     parser.add_argument("--authorized", action="store_true",
                         help="Confirm authorization for the target, specified requests and consent actions")
-    parser.add_argument("--allow-loopback", action="store_true",
-                        help="Allow a literal loopback address for local fixtures")
     parser.add_argument("--output-dir", required=True, type=Path, metavar="NEW_DIRECTORY",
-                        help="New private directory for evidence.json and summary.md")
+                        help="New private directory for evidence.json, audit.json and summary.md")
     parser.add_argument("--consent-url", metavar="URL",
                         help="Same-origin page for consent observations (defaults to the entry page)")
     for action in ("accept", "reject", "withdraw"):
@@ -60,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
-        origin = parse_origin(options.url, allow_loopback=options.allow_loopback)
+        origin = parse_origin(options.url)
         if options.consent_url is not None:
             _approved_url(options.consent_url, origin)
     except ValueError as error:
@@ -85,14 +84,15 @@ def main(argv: list[str] | None = None) -> int:
             consent_url=options.consent_url,
             safe_request_paths=options.allow_request_path,
             notice_selectors=options.notice_selector,
-            allow_loopback=options.allow_loopback,
         )
     except Exception:
         # Backend exceptions may include unredacted URLs, selectors or browser diagnostics.
         evidence = {"merchant_status": "collection-error"}
-    report, usable = render_summary(evidence)
+    audit_record = build_audit_record({**evidence, "authorized_origin": origin})
+    report, usable = render_summary(evidence, audit_record)
     try:
         write_private(options.output_dir / "evidence.json", json.dumps(evidence, indent=2) + "\n")
+        write_private(options.output_dir / "audit.json", json.dumps(audit_record, indent=2) + "\n")
         write_private(options.output_dir / "summary.md", report)
     except OSError:
         print("Could not finish writing outputs. Treat the run directory as incomplete.", file=sys.stderr)

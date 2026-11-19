@@ -1,8 +1,9 @@
 """Live loopback regression checks for the collector and merchant CLI."""
 
+import contextlib
 import importlib.util
+import io
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -10,10 +11,16 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
+from urllib.parse import urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+
+from test_phase2_validation import validate_record
+
+
 ACTIONS = {
     "reject": 'button[data-choice=denied]:has-text("Reject")',
     "accept": "button[data-choice=granted]",
@@ -21,6 +28,17 @@ ACTIONS = {
 }
 EVENT_PATH = "/events/optional"
 SENTINEL = "fixture-sensitive-136799"
+
+def chromium_installed():
+    try:
+        from playwright.sync_api import Error, sync_playwright
+    except ImportError:
+        return False
+    try:
+        with sync_playwright() as playwright:
+            return Path(playwright.chromium.executable_path).is_file()
+    except (Error, OSError):
+        return False
 
 
 def load_lab():
@@ -42,10 +60,19 @@ class InlineFixtureHandler(BaseHTTPRequestHandler):
         pass
 
 
-@unittest.skipUnless(os.environ.get("DPDP_RUN_BROWSER_TESTS") == "1", "live browser tests require opt-in")
+@unittest.skipUnless(chromium_installed(), "Playwright with Chromium is required")
 class Phase2IntegrationTests(unittest.TestCase):
     def setUp(self):
         lab = load_lab()
+        # Keep test-only HTTP and DNS overrides inside the existing loopback fixture harness.
+        async def fixture_addresses(origin):
+            self.assertEqual(urlsplit(origin).hostname, "merchant.test")
+            return ("127.0.0.1",)
+
+        for override in (patch("collector.browser._require_https"),
+                         patch("collector.browser._public_addresses", side_effect=fixture_addresses)):
+            override.start()
+            self.addCleanup(override.stop)
         self.lab_origin = self.start_server(lab.FixtureHandler)
 
     def start_server(self, handler):
@@ -57,21 +84,22 @@ class Phase2IntegrationTests(unittest.TestCase):
         self.addCleanup(server.server_close)
         self.addCleanup(thread.join, 3)
         self.addCleanup(server.shutdown)
-        return f"http://127.0.0.1:{server.server_port}"
+        return f"http://merchant.test:{server.server_port}"
 
-    def collect(self, path, *, origin=None, **options):
+    def collect_packet(self, path, *, origin=None, **options):
         from collector.browser import collect
 
         origin = origin or self.lab_origin
-        result = collect(
+        return collect(
             origin + path,
             authorized_origin=origin,
             authorization={"attested": True, "interactions": list(options.get("actions", {}))},
-            allow_loopback=True,
             settle_ms=500,
             **options,
         )
-        return {item["phase"]: item for item in result["observations"]}
+
+    def collect(self, path, **options):
+        return {item["phase"]: item for item in self.collect_packet(path, **options)["observations"]}
 
     def assert_optional_requests(self, phases, expected):
         counts = {
@@ -129,7 +157,8 @@ class Phase2IntegrationTests(unittest.TestCase):
         self.assertEqual(fresh["initial"]["storage"]["local"], 0)
         self.assertEqual(fresh["reject"]["status"], "not_attempted")
 
-    def test_choices_and_revisits_keep_the_gap_from_missing_page_resources(self):
+    def test_choices_and_revisits_keep_the_question_from_missing_page_resources(self):
+        from collector.audit_record import build_audit_record
         from merchant.report import render_summary
 
         lab = load_lab()
@@ -157,10 +186,11 @@ class Phase2IntegrationTests(unittest.TestCase):
                 """
                 self.reply(200, "text/html", page.encode())
 
-        phases = self.collect(
+        packet = self.collect_packet(
             "/choice", origin=self.start_server(Consent),
             actions={"reject": "#reject", "accept": "#accept", "withdraw": "#withdraw"},
         )
+        phases = {item["phase"]: item for item in packet["observations"]}
         for phase in ("initial", "initial_before_accept"):
             self.assertIn("out_of_scope_origin", phases[phase]["reasons"])
         for phase in ("reject", "accept", "withdraw"):
@@ -172,10 +202,10 @@ class Phase2IntegrationTests(unittest.TestCase):
                 self.assertEqual(phases[phase]["status"], "partial")
                 self.assertEqual(phases[phase]["reasons"], ["page_resources_incomplete"])
         self.assertEqual(foreign_hits, [])
-        summary, _ = render_summary({"observations": list(phases.values())})
+        summary, _ = render_summary(packet, build_audit_record(packet))
         for label in ("After rejection", "After acceptance", "After withdrawal",
                       "Revisit after rejection", "Revisit after acceptance", "Revisit after withdrawal"):
-            self.assertIn(f"**{label}.** Tracking after the choice could not be checked", summary)
+            self.assertIn(f"**{label}.** Could not verify tracking after the choice", summary)
 
     def test_rendered_form_and_notice_without_submission(self):
         phases = self.collect("/dynamic", notice_selectors=["#contact-shell p"])
@@ -237,6 +267,8 @@ class Phase2IntegrationTests(unittest.TestCase):
             self.assertNotIn(name, observed_headers[0])
 
     def test_request_interception_and_redaction(self):
+        from collector.audit_record import build_audit_record
+
         lab = load_lab()
         foreign_hits = []
         write_hits = []
@@ -288,9 +320,10 @@ class Phase2IntegrationTests(unittest.TestCase):
                 self.wfile.write(body)
 
         origin = self.start_server(Boundary)
-        initial = self.collect(
+        packet = self.collect_packet(
             "/boundary", origin=origin, notice_selectors=["p"], safe_request_paths=["/asset"]
-        )["initial"]
+        )
+        initial = packet["observations"][0]
         self.assertEqual(initial["storage"]["local"], 1)
         self.assertEqual(initial["storage"]["cookies"], 1)
         self.assertEqual(initial["notices"][0]["visible_count"], 1)
@@ -307,12 +340,21 @@ class Phase2IntegrationTests(unittest.TestCase):
             for row in initial["requests"]
         ))
         self.assertTrue(any(
+            row["method"] == "POST" and row["attempt_evidence_status"] == "observed"
+            and row["response_evidence_status"] == "unknown" for row in initial["requests"]
+        ))
+        self.assertTrue(any(
             row["disposition"] == "blocked" and row["origin"] is None
             and row.get("reason") == "out_of_scope_origin"
             for row in initial["requests"]
         ))
         self.assertEqual(write_hits, [])
         self.assertEqual(foreign_hits, [])
+        record = build_audit_record(packet)
+        validate_record(self, record)
+        gap, = [item for item in record["findings"] if item["evidence_status"] == "observed_gap"]
+        self.assertIn("Unlabeled", gap["title"])
+        self.assertNotIn(SENTINEL, json.dumps(record))
 
         redirect = self.collect("/redirect", origin=origin)["initial"]
         self.assertEqual(redirect["status"], "blocked")
@@ -324,29 +366,21 @@ class Phase2IntegrationTests(unittest.TestCase):
     def test_merchant_cli_requires_authority_and_publishes_bounded_outputs(self):
         from datetime import datetime, timedelta
         from importlib.metadata import version
+        from merchant.__main__ import main
 
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "audit"
             invocation = [
-                sys.executable, "-m", "merchant", self.lab_origin + "/policy/blocked",
-                "--allow-loopback", "--output-dir", str(destination),
+                self.lab_origin + "/policy/blocked", "--output-dir", str(destination),
             ]
-            denied = subprocess.run(
-                invocation, cwd=ROOT, capture_output=True, text=True, timeout=30, check=False
-            )
-            self.assertNotEqual(denied.returncode, 0)
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as denied:
+                main(invocation)
+            self.assertEqual(denied.exception.code, 2)
             self.assertFalse(destination.exists())
-            run = subprocess.run(
-                [*invocation, "--authorized"],
-                cwd=ROOT,
-                capture_output=True,
-                text=True,
-                timeout=90,
-                check=False,
-            )
-            self.assertEqual(run.returncode, 1, run.stderr)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main([*invocation, "--authorized"]), 1)
             self.assertEqual(
-                {item.name for item in destination.iterdir()}, {"evidence.json", "summary.md"}
+                {item.name for item in destination.iterdir()}, {"evidence.json", "audit.json", "summary.md"}
             )
             evidence = json.loads((destination / "evidence.json").read_text())
             self.assertEqual(evidence["observations"][0]["page_status"], 403)
@@ -359,4 +393,7 @@ class Phase2IntegrationTests(unittest.TestCase):
             head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
             self.assertEqual(evidence["collector"]["revision"], head)
             summary = (destination / "summary.md").read_text()
-            self.assertIn("could not check", summary.lower())
+            self.assertIn("could not verify", summary.lower())
+            record = json.loads((destination / "audit.json").read_text())
+            validate_record(self, record)
+            self.assertTrue(all(item["evidence_status"] == "not_verified" for item in record["findings"]))

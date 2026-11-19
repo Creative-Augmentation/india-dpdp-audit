@@ -22,7 +22,7 @@ REQUEST_MS = 4000
 MAX_REQUESTS = 120
 NAT64_PREFIX = ipaddress.IPv6Network('64:ff9b::/96')
 PAGE_RESOURCE_GAPS = {'request_limit', 'websocket_blocked', 'unplanned_navigation',
-                      'page_resources_incomplete'}
+                      'resource_response_unavailable', 'page_resources_incomplete'}
 METHOD_OVERRIDE_HEADERS = (
     'x-http-method-override', 'x-http-method', 'x-method-override',
     'http-method-override', 'x-override-method',
@@ -48,23 +48,22 @@ def _origin(url):
         port = parts.port
     except ValueError as error:
         raise ValueError('invalid HTTP(S) URL') from error
-    if (parts.scheme not in ('https', 'http') or not host or '%' in host
+    if (parts.scheme not in ('https', 'http') or not host
             or parts.username is not None or port == 0):
         raise ValueError('invalid HTTP(S) URL')
     try:
-        address = ipaddress.ip_address(host)
+        ipaddress.ip_address(host)
     except ValueError:
-        labels = host.split('.')
-        if len(labels) < 2 or labels[-1].isdigit() or any(
-            not HOST_LABEL.fullmatch(label) or label.startswith('-') or label.endswith('-')
-            for label in labels
-        ):
-            raise ValueError('invalid HTTP(S) host') from None
-        if labels[-1].startswith('0x'):
-            raise ValueError('invalid HTTP(S) host')
-        authority = host
+        pass
     else:
-        authority = f'[{host}]' if address.version == 6 else host
+        raise ValueError('authorize a domain name; IP-literal targets are not supported')
+    labels = host.split('.')
+    if len(host) > 253 or len(labels) < 2 or labels[-1].isdigit() or labels[-1].startswith('0x') or any(
+        not HOST_LABEL.fullmatch(label) or label.startswith('-') or label.endswith('-')
+        for label in labels
+    ):
+        raise ValueError('invalid HTTP(S) host')
+    authority = host
     if port is not None and port != (443 if parts.scheme == 'https' else 80):
         authority += f':{port}'
     return f'{parts.scheme}://{authority}'
@@ -87,33 +86,19 @@ def _is_public_address(address):
     return address.is_global and not address.is_multicast
 
 
-def _require_public_resolution(origin, allow_loopback):
-    parts = urlsplit(origin)
-    try:
-        address = ipaddress.ip_address(parts.hostname)
-    except ValueError:
-        address = None
-    if address is not None and address.is_loopback and allow_loopback:
-        return
-    if parts.scheme != 'https':
-        raise ValueError('public sites require HTTPS and fixtures require explicit loopback permission')
-    if address is not None and not _is_public_address(address):
-        raise ValueError('target must be public or an explicitly authorized literal loopback fixture')
-    return
+def _require_https(origin):
+    if urlsplit(origin).scheme != 'https':
+        raise ValueError('public sites require HTTPS')
 
 
 async def _public_addresses(origin):
     host = urlsplit(origin).hostname
-    try:
-        address = ipaddress.ip_address(host)
-    except ValueError:
-        loop = asyncio.get_running_loop()
-        answers = await asyncio.wait_for(loop.getaddrinfo(host, None, type=socket.SOCK_STREAM), 3)
-        addresses = tuple(dict.fromkeys(ipaddress.ip_address(item[4][0]) for item in answers))
-        if not addresses or any(not _is_public_address(address) for address in addresses):
-            raise OSError('non-public resolution')
-        return tuple(str(address) for address in addresses)
-    return (str(address),)
+    loop = asyncio.get_running_loop()
+    answers = await asyncio.wait_for(loop.getaddrinfo(host, None, type=socket.SOCK_STREAM), 3)
+    addresses = tuple(dict.fromkeys(ipaddress.ip_address(item[4][0]) for item in answers))
+    if not addresses or any(not _is_public_address(address) for address in addresses):
+        raise OSError('non-public resolution')
+    return tuple(str(address) for address in addresses)
 
 
 def _strings(values, label, *, limit, width):
@@ -145,7 +130,8 @@ def _collector_revision():
 
 def _observation(phase):
     return dict(phase=phase, status='not_attempted', reasons=[], page_status=None,
-                requests=[], forms=[], notices=[], storage={'cookies': None, 'local': None, 'session': None})
+                document_evidence_status='unknown', requests=[], forms=[], notices=[],
+                storage={'cookies': None, 'local': None, 'session': None})
 
 
 SNAPSHOT = r"""(selectors) => {
@@ -163,6 +149,13 @@ SNAPSHOT = r"""(selectors) => {
     };
     const describedBy = (node) => (node.getAttribute('aria-describedby') || '')
         .split(/\s+/).some((id) => document.getElementById(id) && visible(document.getElementById(id)));
+    const missingLabel = (field) => {
+        const textEntry = field.tagName === 'TEXTAREA' ||
+            (field.tagName === 'INPUT' && ['text', 'search', 'email', 'tel', 'url', 'password'].includes(field.type));
+        return textEntry && !field.labels?.length &&
+            !['aria-label', 'aria-labelledby', 'title', 'placeholder'].some((attribute) =>
+                field.getAttribute(attribute)?.trim());
+    };
     const formNodes = limited(forms);
     return {
         empty: !(document.body?.childElementCount || document.body?.textContent.trim()),
@@ -174,6 +167,7 @@ SNAPSHOT = r"""(selectors) => {
                 type: field.type,
                 required: field.required,
                 labeled: Array.from(field.labels || []).some(visible) || Boolean(field.getAttribute('aria-label')),
+                missing_label: missingLabel(field),
                 described_by_visible_element: describedBy(field),
             })),
         })),
@@ -228,6 +222,7 @@ class _Journey:
         record = dict(origin=origin if origin == self.origin else None,
                       path=path if origin == self.origin and path in self.paths else None,
                       method=method, resource_type=request.resource_type,
+                      attempt_evidence_status='observed', response_evidence_status='unknown',
                       disposition='blocked', status=None, reason=None)
         observation['requests'].append(record)
         if origin != self.origin:
@@ -271,6 +266,7 @@ class _Journey:
                 await route.abort()
                 return
             record['status'] = response.status
+            record['response_evidence_status'] = 'observed'
             if 300 <= response.status < 400 and 'location' in response.headers:
                 record['reason'] = 'redirect_suppressed'
                 await route.abort()
@@ -290,6 +286,8 @@ class _Journey:
         document = await asyncio.wait_for(self.read_document(), 2)
         if document['empty']:
             result['reasons'].append('empty_document')
+        else:
+            result['document_evidence_status'] = 'observed'
         result['forms'] = document['forms']
         result['notices'] = document['notices']
         result['storage'].update(document['storage'])
@@ -342,7 +340,7 @@ class _Journey:
             await asyncio.sleep(self.settle_ms / 1000)
             await self.snapshot(result)
             result['status'] = 'observed'
-        except self.errors + (TimeoutError,):
+        except self.errors + (TimeoutError, asyncio.TimeoutError):
             result['reasons'].append('navigation_or_observation_failed' if url else 'action_or_observation_failed')
         finally:
             if result['page_status'] is None and url:
@@ -358,6 +356,9 @@ class _Journey:
         for event in result['requests']:
             if event['disposition'] == 'blocked' and event['reason'] is None:
                 event['disposition'] = 'pending'
+        if any(event['resource_type'] != 'document' and (event['status'] or 0) >= 400
+               for event in result['requests']):
+            result['reasons'].append('resource_response_unavailable')
         incomplete = dict.fromkeys(event['reason'] or 'request_pending' for event in result['requests']
                                    if event['disposition'] != 'observed')
         result['reasons'].extend(reason for reason in incomplete if reason not in result['reasons'])
@@ -379,7 +380,7 @@ async def _collect(packet, url, consent_url, actions, paths, selectors):
     observations = {result['phase']: result for result in packet['observations']}
     try:
         addresses = await _public_addresses(origin)
-    except (OSError, TimeoutError):
+    except (OSError, asyncio.TimeoutError):
         for result in observations.values():
             result['reasons'].append('public_dns_check_failed')
         return
@@ -390,8 +391,7 @@ async def _collect(packet, url, consent_url, actions, paths, selectors):
             playwright = await stack.enter_async_context(async_playwright())
             parts = urlsplit(origin)
             port = parts.port or (443 if parts.scheme == 'https' else 80)
-            host = f'[{parts.hostname}]' if ':' in parts.hostname else parts.hostname
-            proxy = await stack.enter_async_context(PinnedProxy(f'{host}:{port}', addresses, port))
+            proxy = await stack.enter_async_context(PinnedProxy(f'{parts.hostname}:{port}', addresses, port))
             journey.transport = await playwright.request.new_context(proxy={'server': proxy})
             stack.push_async_callback(journey.transport.dispose)
             browser = await playwright.chromium.launch(args=BROWSER_ARGS, chromium_sandbox=True, timeout=8000)
@@ -445,17 +445,16 @@ async def _branch(browser, journey, observations, url, first_phase, actions, sel
 def collect(url: str, *, authorized_origin: str, authorization: Mapping[str, object],
             actions: Mapping[str, str] | None = None,
             consent_url: str | None = None, safe_request_paths: Iterable[str] = (),
-            notice_selectors: Iterable[str] = (), settle_ms: int = 500,
-            allow_loopback: bool = False) -> dict:
+            notice_selectors: Iterable[str] = (), settle_ms: int = 500) -> dict:
     """Collect a redacted packet after the caller has obtained owner authorization."""
     if not isinstance(authorization, Mapping) or authorization.get('attested') is not True:
         raise ValueError('an explicit authorization attestation is required')
     origin = _origin(authorized_origin)
     if authorized_origin != origin:
         raise ValueError('authorized origin must be an exact canonical origin without a path')
-    _require_public_resolution(origin, allow_loopback is True)
     url = _approved_url(url, origin)
     consent_url = url if consent_url is None else _approved_url(consent_url, origin)
+    _require_https(origin)
     if actions is not None and not isinstance(actions, Mapping):
         raise ValueError('actions must map accept, reject or withdraw to explicit selectors')
     actions = {} if actions is None else dict(actions)
@@ -483,7 +482,8 @@ def collect(url: str, *, authorized_origin: str, authorization: Mapping[str, obj
         phases.append('initial_before_accept')
     phases += ['accept', 'revisit_after_accept', 'withdraw', 'revisit_after_withdraw']
     started_at = _now()
-    attestation = dict(attested=True, origin=origin, interactions=list(interactions), attested_at=started_at)
+    attestation = dict(attested=True, origin=origin, interactions=list(interactions),
+                       attested_at=started_at, evidence_status='supplied')
     collector = dict(name='playwright-chromium', revision=_collector_revision())
     packet = dict(schema_version=1, collector=collector, browser=None, authorized_origin=origin,
                   authorization=attestation, started_at=started_at, finished_at=None, settle_ms=settle_ms,
@@ -492,7 +492,7 @@ def collect(url: str, *, authorized_origin: str, authorization: Mapping[str, obj
         asyncio.run(asyncio.wait_for(
             _collect(packet, url, consent_url, actions, frozenset(paths), selectors), 85,
         ))
-    except TimeoutError:
+    except asyncio.TimeoutError:
         for result in packet['observations']:
             if result['status'] in ('not_attempted', 'blocked'):
                 result['reasons'].append('collection_deadline')
@@ -502,5 +502,11 @@ def collect(url: str, *, authorized_origin: str, authorization: Mapping[str, obj
     for result in packet['observations']:
         if result['status'] == 'not_attempted' and not result['reasons']:
             result['reasons'].append('action_not_configured')
+        result['page_response_evidence_status'] = 'observed' if result['page_status'] is not None else 'unknown'
+        result['storage_evidence_status'] = {
+            name: 'unknown' if count is None else 'observed' for name, count in result['storage'].items()
+        }
+        for notice in result['notices']:
+            notice['evidence_status'] = 'observed' if notice['visible_count'] else 'unknown'
     packet['finished_at'] = _now()
     return packet

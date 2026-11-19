@@ -1,54 +1,27 @@
-"""Summarize observed coverage without assuming what a merchant site does."""
+"""Summarize the audit record and its bounded browser sample."""
 
-PHASES = {
-    "entry": "Entry page",
-    "initial": "Initial consent page",
-    "reject": "After rejection",
-    "revisit_after_reject": "Revisit after rejection",
-    "initial_before_accept": "Initial consent page before acceptance",
-    "accept": "After acceptance",
-    "revisit_after_accept": "Revisit after acceptance",
-    "withdraw": "After withdrawal",
-    "revisit_after_withdraw": "Revisit after withdrawal",
-}
-
-COVERAGE_GAPS = {
-    "partial": "Partial capture. See the evidence for limitations.",
-    "blocked": "Could not check. See the evidence for the capture failure.",
-    "not_attempted": "Could not check in this run.",
-}
+from collector.audit_record import PHASES
 
 
-def render_summary(evidence: dict) -> tuple[str, bool]:
-    heading = "# Website evidence summary"
-    if evidence.get("merchant_status") == "collection-error":
-        return (
-            f"{heading}\n\n"
-            "**Could not check any phase.** The collector failed before producing evidence. "
-            "Check collector setup and the supplied scope settings.\n",
-            False,
-        )
-
-    observations = {
-        item["phase"]: item for item in evidence.get("observations", [])
-        if item.get("phase") in PHASES
+def render_summary(evidence: dict, audit_record: dict) -> tuple[str, bool]:
+    actions = {
+        finding_id: action["summary"]
+        for action in audit_record["actions"] for finding_id in action["finding_ids"]
     }
     gaps = []
+    questions = []
+    for finding in audit_record["findings"]:
+        line = f"- **{finding['title']}.** {finding['observation']} {actions[finding['id']]}"
+        if finding["evidence_status"] == "observed_gap":
+            evidence_ids = ", ".join(finding["evidence_ids"])
+            gaps.append(f"{line} Evidence `{evidence_ids}`.")
+        elif finding["evidence_status"] == "not_verified":
+            questions.append(line)
+
     samples = []
-    for phase, label in PHASES.items():
-        if phase in {"entry", "initial_before_accept"} and phase not in observations:
-            continue
-        observed = observations.get(phase, {})
-        status = observed.get("status")
-        if status != "observed":
-            message = COVERAGE_GAPS.get(status, "Could not check in this run.")
-            if "page_resources_incomplete" in observed.get("reasons", ()):
-                message = (
-                    "Tracking after the choice could not be checked because delivery of "
-                    "the page's scripts was incomplete or unconfirmed."
-                )
-            gaps.append(f"- **{label}.** {message}")
-        if status in {"observed", "partial"}:
+    for observed in evidence.get("observations", ()):
+        if observed["status"] in {"observed", "partial"}:
+            label = PHASES[observed["phase"]]
             forms = observed.get("forms") or []
             fields = sum(len(form.get("fields") or []) for form in forms)
             requests = observed.get("requests") or []
@@ -58,17 +31,10 @@ def render_summary(evidence: dict) -> tuple[str, bool]:
                 f"{len(requests)} recorded requests, {blocked} marked blocked."
             )
 
-    lines = [heading, "", "## Gaps to verify", ""]
-    lines.extend(gaps)
-    lines.extend([
-        "- **Purpose and consent.** Compare sampled forms with their purpose notices and "
-        "confirm actual processing before and after each choice.",
-        "- **Internal controls.** Verify consent records where relevant, retention and deletion, "
-        "rights handling, vendor arrangements, and incident procedures with the owner.",
-        "",
-        "## Browser sample",
-        "",
-    ])
+    lines = ["# Website evidence summary", ""]
+    if gaps:
+        lines.extend(["## Observed gaps", "", *gaps, ""])
+    lines.extend(["## Open questions", "", *questions, "", "## Browser sample", ""])
     lines.extend(samples or ["The collector produced no usable sample."])
     lines.extend([
         "",

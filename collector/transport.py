@@ -30,7 +30,7 @@ class PinnedProxy:
         self.connections.add(task)
         try:
             await asyncio.wait_for(self.tunnel(reader, writer), 8)
-        except (OSError, TimeoutError, asyncio.IncompleteReadError, asyncio.LimitOverrunError):
+        except (OSError, asyncio.TimeoutError, asyncio.IncompleteReadError, asyncio.LimitOverrunError):
             pass
         finally:
             writer.close()
@@ -62,7 +62,7 @@ class PinnedProxy:
         for address in self.addresses:
             try:
                 return await asyncio.wait_for(asyncio.open_connection(address, self.port), 1)
-            except (OSError, TimeoutError):
+            except (OSError, asyncio.TimeoutError):
                 continue
         raise OSError('approved destination unavailable')
 
