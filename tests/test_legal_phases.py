@@ -171,6 +171,71 @@ class LegalPhaseTests(unittest.TestCase):
                 self.assertEqual(legal.check_entry(e, "2026-10-27"), [])
                 self.assertIn("Cannot identify the instrument", legal.entry_warnings(e)[0])
 
+    def test_short_instrument_aliases_apply_pinned_phases(self):
+        for instrument, provision in (
+            ("Data Protection Rules, 2025", "Rule 3"),
+            ("Personal Data Protection Rules 2025", "Rule 3"),
+            ("Data Protection Rules", "Rule 3"),
+            ("Data Protection Act", "Section 8(7)"),
+        ):
+            with self.subTest(instrument=instrument):
+                e = self.entry(provision, instrument=instrument, effective_on="2025-11-13",
+                               source_url="https://www.example-lawblog.test/india/rules-2025.pdf")
+                self.assertIn("cannot be current", "\n".join(legal.check_entry(e, "2026-10-27")))
+
+    def test_opaque_pib_and_legacy_meity_citations_require_uncertainty(self):
+        for source_url in (
+            "https://pib.gov.in/PressReleasePage.aspx?PRID=2261823",
+            "https://meity.nic.in/content/rules",
+            "https://www.pib.nic.in/opaque.pdf",
+        ):
+            with self.subTest(source_url=source_url):
+                e = self.entry("Rule 3", instrument="Notification of 13 November 2025",
+                               effective_on="2025-11-13", source_url=source_url)
+                self.assertIn("Cannot identify the instrument from the official citation",
+                              legal.check_entry(e, "2026-10-27")[0])
+
+    def test_format_characters_and_confusables_in_aliases_apply_pinned_phases(self):
+        for instrument in (
+            "D\u200bPDP Rules 2025",
+            "DP\u00adDP Rules 2025",
+            "Digital Personal Data Pro\u00adtection Rules, 2025",
+            "ДPDP Rules 2025",
+        ):
+            with self.subTest(instrument=instrument):
+                e = self.entry("Rule 3", instrument=instrument, effective_on="2025-11-13",
+                               source_url="https://www.example-lawblog.test/india/rules-2025.pdf")
+                self.assertIn("cannot be current", "\n".join(legal.check_entry(e, "2026-10-27")))
+
+    def test_ambiguous_numbered_citations_on_unofficial_sources_require_uncertainty(self):
+        for instrument, provision in (
+            ("MeitY notification dated 13 November 2025", "Rule 3"),
+            ("The Rules, 2025", "Rule 3"),
+            ("The Act", "Section 8(7)"),
+            ("The Act", "Sections 43–44"),
+        ):
+            with self.subTest(instrument=instrument, provision=provision):
+                e = self.entry(provision, instrument=instrument, effective_on="2025-11-13",
+                               source_url="https://www.example-lawblog.test/india/rules-2025.pdf")
+                self.assertIn("Identify the instrument", legal.check_entry(e, "2026-10-27")[0])
+                e["status"] = "uncertain"
+                self.assertIn("without a commencement date", legal.check_entry(e, "2026-10-27")[0])
+                e["effective_on"] = None
+                self.assertEqual(legal.check_entry(e, "2026-10-27"), [])
+                self.assertTrue(legal.entry_warnings(e))
+
+    def test_stale_future_duty_cannot_use_preparation_or_latest_date_to_bypass_guard(self):
+        for instrument, expected in (
+            ("Data Protection Rules, 2025", "cannot be future"),
+            ("The Rules, 2025", "Identify the instrument"),
+        ):
+            for field in ("preparation_on", "effective_by"):
+                with self.subTest(instrument=instrument, field=field):
+                    e = self.entry("Rule 3", "future", instrument=instrument,
+                                   source_url="https://www.example-lawblog.test/india/rules-2025.pdf",
+                                   **{field: "2028-01-01"})
+                    self.assertIn(expected, "\n".join(legal.check_entry(e, "2027-06-01")))
+
     def test_dpdp_source_and_alias_override_other_instrument_markers(self):
         operative = (
             "https://www.meity.gov.in/static/uploads/2024/06/2bf1f0e9f04e6fb4f8fef35e82c42aa5.pdf"
@@ -183,9 +248,11 @@ class LegalPhaseTests(unittest.TestCase):
             self.assertIn("cannot be current", legal.check_entry(e, "2026-10-27")[0])
 
     def test_unknown_nonofficial_source_retains_generic_checks_with_warning(self):
-        e = self.entry("Section 5", instrument="Other law", source_url="https://law.example.test/act")
-        self.assertEqual(legal.check_entry(e, "2026-10-27"), [])
-        self.assertIn("authority is unverified", legal.entry_warnings(e)[0])
+        for provision in ("Clause 5", "Rule 24", "Section 45"):
+            with self.subTest(provision=provision):
+                e = self.entry(provision, instrument="Other law", source_url="https://law.example.test/act")
+                self.assertEqual(legal.check_entry(e, "2026-10-27"), [])
+                self.assertIn("authority is unverified", legal.entry_warnings(e)[0])
 
     def test_other_instruments_keep_existing_validation(self):
         for instrument, provision, source_url in (
