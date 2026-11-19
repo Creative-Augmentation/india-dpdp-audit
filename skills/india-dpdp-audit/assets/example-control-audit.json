@@ -1,0 +1,128 @@
+{
+  "schema_version": "1.0",
+  "audit_date": "2026-11-19",
+  "scope": {
+    "subject": "Example stationery storefront control audit (synthetic)",
+    "authorized_domains": ["stationery.example.test"],
+    "modes": ["public"],
+    "platforms": ["Custom storefront"],
+    "limitations": ["Training example. The storefront, evidence and owner statement are fictional. Internal records were outside the authorized scope."]
+  },
+  "coverage": [],
+  "evidence": [
+    {
+      "id": "E-owner",
+      "kind": "owner_statement",
+      "status": "asserted",
+      "captured_at": "2026-11-19T10:00:00+05:30",
+      "locator": "Synthetic owner note, item 1",
+      "observation": "The owner says dormant support tickets are deleted after 90 days."
+    },
+    {
+      "id": "E-script",
+      "kind": "public_source",
+      "status": "limited",
+      "captured_at": "2026-11-19T10:10:00+05:30",
+      "locator": "https://stationery.example.test/",
+      "observation": "A partial text capture refers to a script named metrics.js. No runtime activity was captured."
+    },
+    {
+      "id": "E-inference",
+      "kind": "public_source",
+      "status": "inferred",
+      "captured_at": "2026-11-19T10:15:00+05:30",
+      "locator": "https://stationery.example.test/",
+      "observation": "The name in E-script suggests that the storefront may collect usage metrics."
+    }
+  ],
+  "data_map": [],
+  "legal_ledger": [],
+  "findings": [
+    {
+      "id": "F-access",
+      "title": "Support inbox access",
+      "priority": "informational",
+      "confidence": "low",
+      "observation": "The roles with access to the support inbox are unknown.",
+      "evidence_status": "not_verified",
+      "applicability": "unknown",
+      "applicability_reason": "The support workflow requires internal confirmation.",
+      "legal_status": "good_practice",
+      "evidence_ids": [],
+      "legal_ids": []
+    },
+    {
+      "id": "F-deletion",
+      "title": "Deletion of dormant tickets",
+      "priority": "informational",
+      "confidence": "low",
+      "observation": "The owner supplied a retention period. The actual deletion process remains unverified.",
+      "evidence_status": "not_verified",
+      "applicability": "unknown",
+      "applicability_reason": "The period and system it applies to require confirmation.",
+      "legal_status": "good_practice",
+      "evidence_ids": ["E-owner"],
+      "legal_ids": []
+    },
+    {
+      "id": "F-metrics",
+      "title": "Possible usage metrics",
+      "priority": "informational",
+      "confidence": "low",
+      "observation": "The script name suggests metrics collection. Any processing or transfer remains unverified.",
+      "evidence_status": "not_verified",
+      "applicability": "unknown",
+      "applicability_reason": "The check depends on the data actually processed.",
+      "legal_status": "good_practice",
+      "evidence_ids": ["E-script", "E-inference"],
+      "legal_ids": []
+    }
+  ],
+  "actions": [
+    {
+      "id": "A-access",
+      "kind": "evidence_request",
+      "summary": "Request a redacted support inbox role matrix",
+      "owner_role": "Support administrator",
+      "target": "Support inbox permissions",
+      "effort": "One configuration excerpt",
+      "finding_ids": ["F-access"],
+      "dependencies": [],
+      "acceptance_criteria": ["The matrix identifies the roles that can read or export tickets."],
+      "verification_steps": ["Inspect the redacted role configuration in an authorized internal review."],
+      "verification_mode": "internal",
+      "verification_status": "pending",
+      "verification_evidence_ids": []
+    },
+    {
+      "id": "A-deletion",
+      "kind": "evidence_request",
+      "summary": "Request the retention setting and a synthetic deletion record",
+      "owner_role": "Support administrator",
+      "target": "Support ticket retention workflow",
+      "effort": "One setting and one synthetic record",
+      "finding_ids": ["F-deletion"],
+      "dependencies": [],
+      "acceptance_criteria": ["The setting and record show when deletion takes place and what triggers it."],
+      "verification_steps": ["Compare the configured period with the synthetic deletion record."],
+      "verification_mode": "internal",
+      "verification_status": "pending",
+      "verification_evidence_ids": []
+    },
+    {
+      "id": "A-metrics",
+      "kind": "evidence_request",
+      "summary": "Observe whether the script makes a network request",
+      "owner_role": "Storefront maintainer",
+      "target": "Public storefront page load",
+      "effort": "One isolated browser session",
+      "finding_ids": ["F-metrics"],
+      "dependencies": [],
+      "acceptance_criteria": ["The capture identifies any request the script makes and any data sent in the sampled load."],
+      "verification_steps": ["Load the authorized page in an isolated browser and inspect its network log without submitting a form."],
+      "verification_mode": "public",
+      "verification_status": "pending",
+      "verification_evidence_ids": []
+    }
+  ]
+}

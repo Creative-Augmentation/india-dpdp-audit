@@ -73,7 +73,14 @@ When delegation is authorised, use independent solo reviewers with narrow tasks,
 
 Lead with a bounded conclusion: observed readiness/current-law concerns and what cannot be established. Never certify compliance from a public scan or report an uncommenced obligation as a current violation. An audit that finds a Consent Manager or other phase item must state the date uncertainty and never call it a current violation before the phase has commenced on every reading. State that the report is a technical and readiness review, not legal advice, and that applicability, exemptions and deadlines should be confirmed with qualified Indian counsel.
 
-For each finding record: priority, observation and URL or file/line, applicable provision and official source, effective status, confidence, practical fix, and a verification step. Use these evidence labels:
+Use four evidence tiers.
+
+- **Observed** means a page, network event, code, configuration or record inspected in this audit. Link at least one observation that shows the defect itself for every gap. Assign high or critical only when evidence shows actual exposure or processing without the required safeguard, using the [severity rubric](references/output-contract.md#severity).
+- **Supplied** means an unverified owner statement or document. When this is all the evidence, record what could not be verified and name the evidence that would resolve it.
+- **Inferred** means a conclusion drawn from other evidence. Keep it as a watch note in the open questions and state how to confirm it.
+- **Unknown** means the check lacks enough evidence. Record it as an open question with what could not be verified and the next step. A report may count zero observed gaps in the sample while retaining all open questions. Reserve any compliance or no-gap conclusion for checks with sufficient evidence, and keep overall compliance undetermined.
+
+For each finding record the priority, observation and URL or file/line, applicable provision and official source, effective status, confidence, practical fix, and verification step. Use these finding labels.
 
 - **Observed gap**: evidence demonstrates a missing control; specify whether the duty is currently applicable or still a readiness requirement.
 - **Not verified**: unavailable backend, contract, deployment or operational evidence; absence of public proof is not proof of noncompliance.

@@ -82,7 +82,10 @@
       "properties": {
         "id": {"$ref": "#/$defs/id"},
         "kind": {"enum": ["public_browser", "public_source", "repository_code", "owner_statement", "internal_record", "staging_check"]},
-        "status": {"enum": ["direct", "limited", "asserted"]},
+        "status": {
+          "description": "Direct evidence is observed. Asserted evidence is supplied. Limited evidence leaves a check unverified, and inferred evidence supports a watch note.",
+          "enum": ["direct", "limited", "asserted", "inferred"]
+        },
         "captured_at": {"type": "string", "format": "date-time"},
         "locator": {"$ref": "#/$defs/text"},
         "observation": {"$ref": "#/$defs/text"},
@@ -142,10 +145,12 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "title", "priority", "confidence", "observation", "evidence_status", "applicability", "applicability_reason", "legal_status", "evidence_ids", "legal_ids"],
+      "if": {"properties": {"priority": {"enum": ["critical", "high"]}}},
+      "then": {"properties": {"evidence_ids": {"minItems": 1}}},
       "properties": {
         "id": {"$ref": "#/$defs/id"},
         "title": {"$ref": "#/$defs/text"},
-        "priority": {"enum": ["high", "medium", "low", "informational"]},
+        "priority": {"enum": ["critical", "high", "medium", "low", "informational"]},
         "confidence": {"enum": ["high", "medium", "low"]},
         "observation": {"$ref": "#/$defs/text"},
         "evidence_status": {"enum": ["observed_gap", "not_verified", "meets_sampled_check", "not_applicable"]},

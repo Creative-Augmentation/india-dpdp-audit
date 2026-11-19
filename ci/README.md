@@ -1,7 +1,9 @@
-# CI activation pending
+# CI
 
-`validate-audit.yml` is the proposed GitHub Actions workflow for Python 3.10 and 3.14. It is deliberately stored outside `.github/workflows/` and does not run in this location.
+`.github/workflows/validate.yml` is the hosted check. It is deliberately light: one job on `ubuntu-latest`, Python 3.10 (the lowest supported version), no matrix, `pull_request` only, no path filters, a 5-minute timeout and a per-PR concurrency group that cancels superseded runs.
 
-Hosted checks are pending. All 87 tests and copied-package validation/rendering passed locally on Python 3.10.19 and 3.14.7 on 18 November 2026 after the follow-up corrections. Local validation is recorded separately in the review handoff; it does not establish that GitHub Actions has run.
+Steps: install the packaged and test requirements (pip cached), run `python -m unittest discover -s tests`, then `python scripts/check_fixture_hygiene.py`.
 
-A maintainer with workflow permission can activate this template at `.github/workflows/ci.yml` in a subsequent commit. It pins action revisions, installs the packaged dependencies, runs unit tests, validates benchmark fixtures, checks fixture hygiene and validates/renders the synthetic example. Its only GitHub permission is `contents: read`; it never scans customer websites or uploads audit records.
+CI installs no browser, and the tests run without one. The benchmark runner and example render run separately from CI. Run those locally when you change them.
+
+Its only GitHub permission is `contents: read`; action revisions are pinned by SHA. It uses synthetic inputs only, never customer sites, and uploads no audit records.
