@@ -179,6 +179,8 @@ class AuditRecordTests(unittest.TestCase):
         self.record["evidence"][0]["status"] = "limited"
         self.record["findings"][0]["evidence_ids"] = ["E-form", "E-owner"]
         self.assertInvalid("observed_gap requires direct evidence")
+        self.record["findings"][0]["evidence_ids"] = []
+        self.assertInvalid("observed_gap requires direct evidence")
 
     def test_inferred_evidence_cannot_confirm_a_gap(self):
         self.record["evidence"].append(dict(self.record["evidence"][0], id="E-inferred", status="inferred"))
@@ -226,8 +228,6 @@ class AuditRecordTests(unittest.TestCase):
         self.assertEqual(questions.count("**Next step**"), 3)
         self.assertIn("**Watch**", questions)
         self.assertIn("Overall compliance remains undetermined", report)
-        self.record["findings"][0]["evidence_ids"] = []
-        self.assertInvalid("observed_gap requires direct evidence")
 
     def test_success_and_exclusion_reject_owner_or_limited_evidence_padding(self):
         finding = self.record["findings"][0]
