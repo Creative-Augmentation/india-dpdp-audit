@@ -25,13 +25,23 @@ _REGISTRY = json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
 _ACRONYM = r"d\.?\s*p\.?\s*d\.?\s*p\.?(?:\s*[ar]\.?)?(?![a-z])"
 _HINDI_NAME = r"डिजिटल\s+(?:वैयक्तिक|व्यक्तिगत)\s+(?:पहचान\s+)?(?:डेटा|डाटा|दत्तांश)\s+संरक्षण"
 _NAME = rf"(?:\b{_ACRONYM}|\bdigital\s+personal\s+data\s+protection\b|{_HINDI_NAME})"
-_SHORT_ACT = r"\b(?:personal\s+)?data\s+protection\s+act(?:[,\s-]*2023)?\b"
-_SHORT_RULES = r"\b(?:personal\s+)?data\s+protection\s+rules(?:[,\s-]*2025)?\b"
+_SHORT_ACT_TITLE = r"\b(?:personal\s+)?data\s+protection\s+act"
+_SHORT_RULES_TITLE = r"\b(?:personal\s+)?data\s+protection\s+rules"
+_SHORT_ACT = rf"{_SHORT_ACT_TITLE}[,\s(-]*2023\b"
+_SHORT_RULES = rf"{_SHORT_RULES_TITLE}[,\s(-]*2025\b"
+_NO_YEAR = r"\b(?![,\s(-]*[0-9]{4}\b)"
+_INDIA = re.compile(r"\bindia(?:n)?\b", re.I)
 _ACT_NUMBER = r"\bact\s*(?:no\.?|number)?\s*22\s*of\s*2023\b"
 _GSR = r"g\.?\s*s\.?\s*r\.?\s*"
+_RULES_OF_PREFIX = r"\brules\s+(?:of|under)\s+(?:the\s+)?"
 _RULES_OF = re.compile(
-    rf"\brules\s+(?:of|under)\s+(?:the\s+)?(?:{_NAME}|{_SHORT_ACT}|{_ACT_NUMBER})", re.I
+    rf"{_RULES_OF_PREFIX}(?:{_NAME}|{_SHORT_ACT}|{_ACT_NUMBER})", re.I
 )
+_RULES_OF_SHORT_ACT = re.compile(rf"{_RULES_OF_PREFIX}(?:india(?:'s|n)?\s+)?{_SHORT_ACT_TITLE}{_NO_YEAR}", re.I)
+_UNDATED_INSTRUMENT = {
+    "act": re.compile(rf"{_SHORT_ACT_TITLE}{_NO_YEAR}", re.I),
+    "rules": re.compile(rf"{_SHORT_RULES_TITLE}{_NO_YEAR}", re.I),
+}
 _INSTRUMENT = {
     "act": re.compile(
         rf"(?:\bd\.?\s*p\.?\s*d\.?\s*p\.?\s*a\.?(?![a-z])"
@@ -48,19 +58,31 @@ _DPDP_HINT = re.compile(rf"(?:{_NAME}|{_SHORT_ACT}|{_SHORT_RULES}|{_ACT_NUMBER})
 _OFFICIAL_HOSTS = ("meity.gov.in", "meity.nic.in", "egazette.gov.in", "egazette.nic.in",
                    "indiacode.gov.in", "indiacode.nic.in", "pib.gov.in", "pib.nic.in")
 _OTHER_INSTRUMENT = re.compile(
-    rf"^(?:spdi\s+rules\b|{_GSR}313\b"
+    rf"^(?:the\s+)?(?:spdi\s+rules\b|{_GSR}313\b"
     r"|information technology(?:\s+\([^()]+\))?\s+rules\b.*\b2011\b"
     r"|(?:information technology|it)\s+act\b.*\b2000\b"
-    r"|cert[ -]in\b.*\b(?:directions?|2022)\b)", re.I
+    r"|cert[ -]in\b.*\b(?:directions?|2022)\b"
+    r"|consumer protection\s*\(e[ \u2010\u2011\u2013-]commerce\)\s*rules[,\s-]*2020\b"
+    r"|consumer protection act[,\s-]*2019\b"
+    r"|(?:payment and settlement systems|pss) act[,\s-]*2007\b"
+    r"|legal metrology(?:\s*\(packaged commodities\))?\s+rules[,\s-]*2011\b"
+    rf"|(?:(?:uk|united kingdom)\s+)?{_SHORT_ACT_TITLE}[,\s(-]*2018\b"
+    rf"|(?:singapore\s+)?{_SHORT_ACT_TITLE}[,\s(-]*2012\b)", re.I
 )
 _UNCERTAINTY_REASON = re.compile(
     r"\b(?:gazette|publication|source|notification|court|stay|amendment|"
     r"order|corrigendum|conflict|verification|unavailable|inaccessible)\b|अधिसूचना|राजपत्र|न्यायालय|स्रोत", re.I
 )
+_CITATION_LABEL = r"rules?|rr?\.|sections?|secs?\.?|ss?\.|नियम|धारा|धाराएँ"
 _CITATION = re.compile(
-    r"(?:(?P<kind>rules?|rr?\.|sections?|secs?\.?|ss?\.|नियम|धारा|धाराएँ)\s*)?"
+    rf"(?:(?P<kind>{_CITATION_LABEL})\s*)?"
     r"(?P<number>[1-9][0-9]?)(?P<parts>(?:\s*\(\s*[a-z0-9]+\s*\))*)"
     r"(?:\s*(?:[-–—]|\bto\b|से)\s*(?P<end>[1-9][0-9]?))?",
+    re.I,
+)
+_CITATION_IN_PROSE = re.compile(
+    rf"(?<!\w)({_CITATION_LABEL}|r(?=\s*[0-9]))[\s-]*"
+    r"(?:(?:no\.|(?:no|number)\b)\s*)?0*([0-9]{1,2})(?!\w)",
     re.I,
 )
 _SEPARATOR = re.compile(r"\s*(?:[,;&]\s*(?:and\b)?|\band\b| और )\s*", re.I)
@@ -87,6 +109,10 @@ _SOURCE = {
     }.items()
     for url in urls
 }
+
+
+def is_pinned_source(url):
+    return _url_identity(url) in _SOURCE
 
 
 def _without_format_characters(text):
@@ -158,7 +184,10 @@ def _could_cite_dpdp(provision_text):
             numbers = range(int(number), int(end or number) + 1)
             if not _PROVISION_NUMBERS[kind].isdisjoint(numbers):
                 return True
-    return False
+    return any(
+        int(number) in _PROVISION_NUMBERS[_citation_kind(label)]
+        for label, number in _CITATION_IN_PROSE.findall(provision_text)
+    )
 
 
 def _classify(entry):
@@ -166,13 +195,16 @@ def _classify(entry):
     provision_text = _normalized(entry["provision"])
     url_identity = _url_identity(entry.get("source_url", ""))
     source = _SOURCE.get(url_identity)
-    url_hint = bool(url_identity and _DPDP_HINT.search(url_identity[1].replace("-", " ")))
-    if _RULES_OF.search(instrument):
+    source_path = re.sub(r"[-_]", " ", url_identity[1]) if url_identity else ""
+    india_context = _INDIA.search(instrument) or _INDIA.search(source_path)
+    if _RULES_OF.search(instrument) or (india_context and _RULES_OF_SHORT_ACT.search(instrument)):
         instruments = {"rules"}
     else:
         instruments = {kind for kind, pattern in _INSTRUMENT.items() if pattern.search(instrument)}
+        if india_context:
+            instruments.update(kind for kind, pattern in _UNDATED_INSTRUMENT.items() if pattern.search(instrument))
     if not instruments and not source:
-        if url_hint or _DPDP_HINT.search(instrument) or _DPDP_HINT.search(provision_text):
+        if any(_DPDP_HINT.search(text) for text in (source_path, instrument, provision_text)):
             return set(), "unmapped_dpdp"
         if not _OTHER_INSTRUMENT.search(instrument):
             if _is_official_host(url_identity):

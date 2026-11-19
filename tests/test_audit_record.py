@@ -16,6 +16,7 @@ except ImportError as error:
 SKILL = Path(__file__).resolve().parents[1] / "skills" / "india-dpdp-audit"
 CLI = SKILL / "scripts" / "audit.py"
 EXAMPLE = SKILL / "assets" / "example-audit.json"
+CONTROL = SKILL / "assets" / "example-control-audit.json"
 spec = importlib.util.spec_from_file_location("audit", CLI)
 audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
@@ -51,6 +52,11 @@ class AuditRecordTests(unittest.TestCase):
             "Owner-asserted ground", "Preparation date", "Verification step", "Effort", "Target",
         ):
             self.assertIn(marker, result.stdout)
+        questions = result.stdout.split("## Open questions\n", 1)[1].split("\n## ", 1)[0]
+        for identifier in ("J-retention", "D-contact"):
+            with self.subTest(identifier=identifier):
+                entry = questions.split(f"### {identifier}", 1)[1].split("\n### ", 1)[0]
+                self.assertIn("**Next step**", entry)
 
     def test_dangling_and_duplicate_references(self):
         self.record["actions"][0]["finding_ids"].append("F-missing")
@@ -125,6 +131,15 @@ class AuditRecordTests(unittest.TestCase):
         self.assertIn("**Legal phase review**", report)
         self.assertNotIn("**Official source**", report)
 
+    def test_pinned_source_keeps_its_registry_status_when_the_citation_warns(self):
+        entry = self.record["legal_ledger"][0]
+        entry.update(provision="Rule 3 on notice", status="uncertain")
+        self.record["findings"][0]["legal_status"] = "uncertain"
+        self.assertEqual(audit.validate(self.record, self.validator), [])
+        report = audit.render(self.record)
+        self.assertIn("wholly or partly unmapped", report)
+        self.assertNotIn("(not in pinned official registry)", report)
+
     def test_future_duty_requires_a_commencement_or_preparation_date(self):
         entry = self.record["legal_ledger"][0]
         entry.pop("preparation_on")
@@ -171,6 +186,83 @@ class AuditRecordTests(unittest.TestCase):
         self.assertInvalid("observed_gap requires direct evidence")
         self.record["findings"][0]["evidence_ids"] = []
         self.assertInvalid("observed_gap requires direct evidence")
+
+    def test_inferred_evidence_cannot_confirm_a_gap(self):
+        self.record["evidence"].append(dict(self.record["evidence"][0], id="E-inferred", status="inferred"))
+        self.record["findings"][0]["evidence_ids"] = ["E-owner", "E-inferred"]
+        self.assertInvalid("observed_gap requires direct evidence")
+
+    def test_high_and_critical_require_linked_direct_evidence(self):
+        finding = self.record["findings"][1]
+        finding["evidence_ids"] = ["E-owner"]
+        for priority in ("high", "critical"):
+            with self.subTest(priority=priority):
+                finding["priority"] = priority
+                self.assertInvalid(f"{priority} priority requires direct evidence")
+
+    def test_not_verified_cannot_be_high_even_with_direct_evidence(self):
+        finding = self.record["findings"][1]
+        finding["priority"] = "high"
+        self.assertInvalid("not_verified findings cannot have high or critical priority")
+
+    def test_observed_gaps_can_be_critical(self):
+        finding = self.record["findings"][0]
+        observation = "The sampled public response displayed a synthetic customer's personal data without sign-in."
+        self.record["evidence"][0]["observation"] = observation
+        finding.update(title="Unauthenticated personal-data exposure", observation=observation,
+                       priority="critical", evidence_ids=["E-form"], legal_status="good_practice", legal_ids=[])
+        self.assertEqual(audit.validate(self.record, self.validator), [])
+        self.assertIn("critical priority", audit.render(self.record))
+
+    def test_unknown_item_cannot_claim_compliance_or_no_gaps(self):
+        finding = self.record["findings"][1]
+        for wording in (
+            "The site is compliant", "No gaps were found", "No gap was found", "Fully complies",
+            "In compliance", "Compliance confirmed", "zero gaps", "Ｃｏｍｐｌｉａｎｔ", "com\u00adpliant",
+            "Could not verify whether the site is compliant. No gap was found.",
+        ):
+            with self.subTest(wording=wording):
+                finding["observation"] = wording
+                self.assertInvalid("F-deletion: unsupported conclusion")
+
+    def test_open_questions_accept_qualified_wording(self):
+        for wording in (
+            "Could not verify whether the site is compliant", "The service is not compliant",
+            "Check if the site is compliant", "Could not verify the site is compliant", "The check is un compliant",
+        ):
+            with self.subTest(wording=wording):
+                self.record["findings"][1]["observation"] = wording
+                self.assertEqual(audit.validate(self.record, self.validator), [])
+
+    def test_other_open_question_fields_cannot_claim_compliance_or_no_gaps(self):
+        for label, item, field, value in (
+            ("J-checkout", self.record["coverage"][1], "notes", "Compliance confirmed"),
+            ("D-contact", self.record["data_map"][0], "unknowns", ["No gap was found"]),
+            ("F-phone", self.record["findings"][0], "applicability_reason", "Fully complies"),
+            ("scope.subject", self.record["scope"], "subject", "Compliant storefront"),
+            ("scope.limitations", self.record["scope"], "limitations", ["No gaps were found"]),
+        ):
+            with self.subTest(field=field), patch.dict(item, {field: value}):
+                self.assertInvalid(f"{label}: unsupported conclusion")
+
+    def test_control_actions_and_evidence_cannot_claim_compliance_or_no_gaps(self):
+        self.record = audit.read_json(CONTROL)
+        for item, field, value in (
+            (self.record["actions"][0], "summary", "Confirm no gaps"),
+            (self.record["evidence"][0], "observation", "Compliance confirmed"),
+        ):
+            with self.subTest(field=field), patch.dict(item, {field: value}):
+                self.assertInvalid(f"{item['id']}: unsupported conclusion")
+
+    def test_control_has_zero_gaps_and_lists_open_questions_with_next_steps(self):
+        self.record = audit.read_json(CONTROL)
+        self.assertIn("**Observed gaps** · 0 recorded in the sample.", self.summary())
+        report = audit.render(self.record)
+        questions = report.split("## Open questions\n", 1)[1].split("\n## ", 1)[0]
+        self.assertEqual(questions.count("**Could not verify**"), 3)
+        self.assertEqual(questions.count("**Next step**"), 3)
+        self.assertIn("**Watch**", questions)
+        self.assertIn("Overall compliance remains undetermined", report)
 
     def test_success_and_exclusion_reject_owner_or_limited_evidence_padding(self):
         finding = self.record["findings"][0]
