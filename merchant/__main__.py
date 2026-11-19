@@ -1,45 +1,21 @@
 """Collect a bounded sample of a merchant website with explicit authorization."""
 
 import argparse
-import ipaddress
 import json
 import os
 import sys
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from merchant.report import render_summary
 
 
 def parse_origin(url: str, *, allow_loopback: bool) -> str:
-    if any(ord(character) <= 32 or ord(character) == 127 for character in url):
-        raise ValueError("Use an absolute URL without whitespace or control characters.")
-    if any(character in url for character in "\\?#"):
-        raise ValueError("Use a URL without backslashes, a query string, or a fragment.")
-    parts = urlsplit(url)
-    host = parts.hostname
-    port = parts.port
-    if parts.scheme not in {"http", "https"} or not host or not parts.netloc:
-        raise ValueError("Use an absolute HTTPS URL.")
-    if parts.username is not None or parts.password is not None:
-        raise ValueError("Credentials in URLs are forbidden.")
-    if not host.isascii() or "%" in host:
-        raise ValueError("Use a literal IP address or an ASCII domain name.")
-    try:
-        address = ipaddress.ip_address(host)
-    except ValueError:
-        address = None
-    if address is not None and address.is_loopback:
-        if not allow_loopback:
-            raise ValueError("Loopback targets require --allow-loopback for local fixtures.")
-    elif parts.scheme != "https":
-        raise ValueError("HTTPS is required outside literal loopback fixtures.")
+    from collector.browser import _approved_url, _origin, _require_public_resolution
 
-    authority = f"[{host}]" if ":" in host else host
-    default_port = 443 if parts.scheme == "https" else 80
-    if port is not None and port != default_port:
-        authority += f":{port}"
-    return f"{parts.scheme}://{authority}"
+    origin = _origin(url)
+    _approved_url(url, origin)
+    _require_public_resolution(origin, allow_loopback)
+    return origin
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -78,11 +54,15 @@ def main(argv: list[str] | None = None) -> int:
     if not options.authorized:
         parser.error("--authorized is required before any collection can run.")
     try:
+        from collector.browser import _approved_url, collect
+    except ImportError:
+        print("Collector unavailable. See merchant/README.md for setup.", file=sys.stderr)
+        return 1
+
+    try:
         origin = parse_origin(options.url, allow_loopback=options.allow_loopback)
-        if options.consent_url and parse_origin(
-            options.consent_url, allow_loopback=options.allow_loopback
-        ) != origin:
-            parser.error("--consent-url must have the same origin as URL.")
+        if options.consent_url is not None:
+            _approved_url(options.consent_url, origin)
     except ValueError as error:
         parser.error(str(error))
 
@@ -90,12 +70,6 @@ def main(argv: list[str] | None = None) -> int:
         action: selector for action in ("accept", "reject", "withdraw")
         if (selector := getattr(options, f"{action}_selector")) is not None
     }
-    try:
-        from collector.browser import collect
-    except ImportError:
-        print("Collector unavailable. See merchant/README.md for setup.", file=sys.stderr)
-        return 1
-
     try:
         options.output_dir.mkdir(mode=0o700)
     except OSError:
@@ -106,6 +80,7 @@ def main(argv: list[str] | None = None) -> int:
         evidence = collect(
             options.url,
             authorized_origin=origin,
+            authorization={"attested": options.authorized, "interactions": list(actions)},
             actions=actions,
             consent_url=options.consent_url,
             safe_request_paths=options.allow_request_path,

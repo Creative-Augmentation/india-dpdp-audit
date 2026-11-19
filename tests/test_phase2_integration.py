@@ -53,6 +53,7 @@ class Phase2IntegrationTests(unittest.TestCase):
         result = collect(
             origin + path,
             authorized_origin=origin,
+            authorization={"attested": True, "interactions": list(options.get("actions", {}))},
             allow_loopback=True,
             settle_ms=500,
             **options,
@@ -115,6 +116,54 @@ class Phase2IntegrationTests(unittest.TestCase):
         self.assertEqual(fresh["initial"]["storage"]["local"], 0)
         self.assertEqual(fresh["reject"]["status"], "not_attempted")
 
+    def test_choices_and_revisits_keep_the_gap_from_missing_page_resources(self):
+        from merchant.report import render_summary
+
+        lab = load_lab()
+        foreign_hits = []
+
+        class Foreign(lab.FixtureHandler):
+            def do_GET(self):
+                foreign_hits.append(self.path)
+                self.reply(200, "application/javascript", b"/* synthetic page resource */")
+
+        foreign = self.start_server(Foreign)
+
+        class Consent(lab.FixtureHandler):
+            def do_GET(self):
+                if self.path != "/choice":
+                    return super().do_GET()
+                script = ""
+                if "visited=1" not in self.headers.get("Cookie", ""):
+                    script = f'<script src="{foreign}/tag.js"></script>'
+                page = f"""<!doctype html>{script}
+                    <button id="reject" type="button">Reject</button>
+                    <button id="accept" type="button">Accept</button>
+                    <button id="withdraw" type="button">Withdraw</button>
+                    <script>document.cookie = 'visited=1';</script>
+                """
+                self.reply(200, "text/html", page.encode())
+
+        phases = self.collect(
+            "/choice", origin=self.start_server(Consent),
+            actions={"reject": "#reject", "accept": "#accept", "withdraw": "#withdraw"},
+        )
+        for phase in ("initial", "initial_before_accept"):
+            self.assertIn("out_of_scope_origin", phases[phase]["reasons"])
+        for phase in ("reject", "accept", "withdraw"):
+            with self.subTest(phase=phase):
+                self.assertEqual(phases[phase]["requests"], [])
+        for phase in ("reject", "accept", "withdraw", "revisit_after_reject",
+                      "revisit_after_accept", "revisit_after_withdraw"):
+            with self.subTest(phase=phase):
+                self.assertEqual(phases[phase]["status"], "partial")
+                self.assertEqual(phases[phase]["reasons"], ["page_resources_incomplete"])
+        self.assertEqual(foreign_hits, [])
+        summary, _ = render_summary({"observations": list(phases.values())})
+        for label in ("After rejection", "After acceptance", "After withdrawal",
+                      "Revisit after rejection", "Revisit after acceptance", "Revisit after withdrawal"):
+            self.assertIn(f"**{label}.** Tracking after the choice could not be checked", summary)
+
     def test_rendered_form_and_notice_without_submission(self):
         phases = self.collect("/dynamic", notice_selectors=["#contact-shell p"])
         initial = phases["initial"]
@@ -136,6 +185,44 @@ class Phase2IntegrationTests(unittest.TestCase):
         self.assertEqual(unknown["status"], "observed")
         self.assertNotIn("measurement.example.test", json.dumps(unknown))
         self.assertNotIn("intake.invalid", json.dumps(unknown))
+
+    def test_empty_successful_document_is_partial(self):
+        lab = load_lab()
+
+        class Blank(lab.FixtureHandler):
+            def do_GET(self):
+                self.reply(200, "text/html", b"<!doctype html><body> \n </body>")
+
+        initial = self.collect("/blank", origin=self.start_server(Blank))["initial"]
+        self.assertEqual(initial["page_status"], 200)
+        self.assertEqual(initial["status"], "partial")
+        self.assertIn("empty_document", initial["reasons"])
+
+    def test_method_override_headers_are_omitted_from_forwarding(self):
+        lab = load_lab()
+        observed_headers = []
+
+        class Headers(lab.FixtureHandler):
+            def do_GET(self):
+                if self.path == "/":
+                    page = b"""<!doctype html><p>Sample</p><script>
+                        fetch('/headers', {headers: {'X-HTTP-Method-Override': 'HEAD',
+                            'X-HTTP-Method': 'HEAD', 'X-Method-Override': 'HEAD',
+                            'X-Fixture': 'kept'}});
+                        </script>"""
+                    self.reply(200, "text/html", page)
+                elif self.path == "/headers":
+                    observed_headers.append({name.lower(): value for name, value in self.headers.items()})
+                    self.reply(204, "text/plain")
+                else:
+                    super().do_GET()
+
+        initial = self.collect("/", origin=self.start_server(Headers))["initial"]
+        self.assertEqual(initial["status"], "observed")
+        self.assertEqual(len(observed_headers), 1)
+        self.assertEqual(observed_headers[0]["x-fixture"], "kept")
+        for name in ("x-http-method-override", "x-http-method", "x-method-override"):
+            self.assertNotIn(name, observed_headers[0])
 
     def test_request_interception_and_redaction(self):
         lab = load_lab()
@@ -223,6 +310,9 @@ class Phase2IntegrationTests(unittest.TestCase):
         self.assertNotIn(SENTINEL, json.dumps(redirect))
 
     def test_merchant_cli_requires_authority_and_publishes_bounded_outputs(self):
+        from datetime import datetime, timedelta
+        from importlib.metadata import version
+
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "audit"
             invocation = [
@@ -248,5 +338,13 @@ class Phase2IntegrationTests(unittest.TestCase):
             )
             evidence = json.loads((destination / "evidence.json").read_text())
             self.assertEqual(evidence["observations"][0]["page_status"], 403)
+            authorization = evidence["authorization"]
+            self.assertIs(authorization["attested"], True)
+            self.assertEqual(authorization["origin"], self.lab_origin)
+            self.assertEqual(authorization["interactions"], [])
+            self.assertEqual(datetime.fromisoformat(authorization["attested_at"]).utcoffset(), timedelta())
+            self.assertEqual(evidence["browser"]["playwright_version"], version("playwright"))
+            head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+            self.assertEqual(evidence["collector"]["revision"], head)
             summary = (destination / "summary.md").read_text()
             self.assertIn("could not check", summary.lower())

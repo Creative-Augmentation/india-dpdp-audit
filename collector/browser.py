@@ -4,10 +4,13 @@ import asyncio
 from collections.abc import Iterable, Mapping
 from contextlib import AsyncExitStack
 from datetime import datetime, timezone
+from importlib.metadata import PackageNotFoundError, version
 import ipaddress
 import json
+from pathlib import Path
 import re
 import socket
+import subprocess
 from urllib.parse import urlsplit
 
 from .transport import PinnedProxy
@@ -17,6 +20,13 @@ ACTIONS = ('accept', 'reject', 'withdraw')
 NAVIGATION_MS = 6500
 REQUEST_MS = 4000
 MAX_REQUESTS = 120
+NAT64_PREFIX = ipaddress.IPv6Network('64:ff9b::/96')
+PAGE_RESOURCE_GAPS = {'request_limit', 'websocket_blocked', 'unplanned_navigation',
+                      'page_resources_incomplete'}
+METHOD_OVERRIDE_HEADERS = (
+    'x-http-method-override', 'x-http-method', 'x-method-override',
+    'http-method-override', 'x-override-method',
+)
 SAFE_PATH = re.compile(r'/[A-Za-z0-9/_.~-]{0,199}\Z')
 HOST_LABEL = re.compile(r'[A-Za-z0-9-]{1,63}\Z')
 BROWSER_ARGS = [
@@ -29,7 +39,7 @@ BROWSER_ARGS = [
 
 def _origin(url):
     if not isinstance(url, str) or len(url) > 2048 or any(
-        ord(char) < 33 or char == '\\' for char in url
+        ord(char) < 33 or ord(char) == 127 or char == '\\' for char in url
     ):
         raise ValueError('invalid HTTP(S) URL')
     try:
@@ -38,7 +48,8 @@ def _origin(url):
         port = parts.port
     except ValueError as error:
         raise ValueError('invalid HTTP(S) URL') from error
-    if parts.scheme not in ('https', 'http') or not host or parts.username is not None or port == 0:
+    if (parts.scheme not in ('https', 'http') or not host or '%' in host
+            or parts.username is not None or port == 0):
         raise ValueError('invalid HTTP(S) URL')
     try:
         address = ipaddress.ip_address(host)
@@ -70,6 +81,12 @@ def _approved_url(url, origin):
     return origin + (parts.path or '/')
 
 
+def _is_public_address(address):
+    if address in NAT64_PREFIX:
+        address = ipaddress.IPv4Address(int(address) & 0xFFFFFFFF)
+    return address.is_global and not address.is_multicast
+
+
 def _require_public_resolution(origin, allow_loopback):
     parts = urlsplit(origin)
     try:
@@ -80,7 +97,7 @@ def _require_public_resolution(origin, allow_loopback):
         return
     if parts.scheme != 'https':
         raise ValueError('public sites require HTTPS and fixtures require explicit loopback permission')
-    if address is not None and (not address.is_global or address.is_multicast):
+    if address is not None and not _is_public_address(address):
         raise ValueError('target must be public or an explicitly authorized literal loopback fixture')
     return
 
@@ -93,7 +110,7 @@ async def _public_addresses(origin):
         loop = asyncio.get_running_loop()
         answers = await asyncio.wait_for(loop.getaddrinfo(host, None, type=socket.SOCK_STREAM), 3)
         addresses = tuple(dict.fromkeys(ipaddress.ip_address(item[4][0]) for item in answers))
-        if not addresses or any(not address.is_global or address.is_multicast for address in addresses):
+        if not addresses or any(not _is_public_address(address) for address in addresses):
             raise OSError('non-public resolution')
         return tuple(str(address) for address in addresses)
     return (str(address),)
@@ -110,6 +127,20 @@ def _strings(values, label, *, limit, width):
 
 def _now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def _collector_revision():
+    root = Path(__file__).resolve().parents[1]
+    if not (root / '.git').exists():
+        return None
+    try:
+        result = subprocess.run(
+            ['git', 'rev-parse', '--verify', 'HEAD'], cwd=root, capture_output=True,
+            text=True, check=True, timeout=1,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return result.stdout.strip()
 
 
 def _observation(phase):
@@ -134,6 +165,7 @@ SNAPSHOT = r"""(selectors) => {
         .split(/\s+/).some((id) => document.getElementById(id) && visible(document.getElementById(id)));
     const formNodes = limited(forms);
     return {
+        empty: !(document.body?.childElementCount || document.body?.textContent.trim()),
         forms: formNodes.map((form) => ({
             visible: visible(form),
             described_by_visible_element: describedBy(form),
@@ -227,6 +259,8 @@ class _Journey:
     async def forward(self, route, record, observation):
         # Fetch one hop. Suppress redirect responses before Chromium can follow them.
         headers = await route.request.all_headers()
+        for name in METHOD_OVERRIDE_HEADERS:
+            headers.pop(name, None)
         headers['cookie'] = headers.get('cookie', '')
         headers['accept-encoding'] = 'identity'
         response = await self.transport.fetch(route.request.url, method=route.request.method,
@@ -254,6 +288,8 @@ class _Journey:
 
     async def snapshot(self, result):
         document = await asyncio.wait_for(self.read_document(), 2)
+        if document['empty']:
+            result['reasons'].append('empty_document')
         result['forms'] = document['forms']
         result['notices'] = document['notices']
         result['storage'].update(document['storage'])
@@ -334,6 +370,11 @@ class _Journey:
 async def _collect(packet, url, consent_url, actions, paths, selectors):
     from playwright.async_api import Error, async_playwright
 
+    try:
+        playwright_version = version('playwright')
+    except PackageNotFoundError:
+        playwright_version = None
+
     origin = packet['authorized_origin']
     observations = {result['phase']: result for result in packet['observations']}
     try:
@@ -354,7 +395,8 @@ async def _collect(packet, url, consent_url, actions, paths, selectors):
             journey.transport = await playwright.request.new_context(proxy={'server': proxy})
             stack.push_async_callback(journey.transport.dispose)
             browser = await playwright.chromium.launch(args=BROWSER_ARGS, chromium_sandbox=True, timeout=8000)
-            packet['browser'] = {'engine': 'chromium', 'version': browser.version}
+            packet['browser'] = dict(engine='chromium', version=browser.version,
+                                     playwright_version=playwright_version)
             try:
                 if url != consent_url:
                     await _branch(browser, journey, observations, url, 'entry', (), actions)
@@ -362,10 +404,6 @@ async def _collect(packet, url, consent_url, actions, paths, selectors):
                 await _branch(browser, journey, observations, consent_url, 'initial', reject, actions)
                 if 'accept' in actions:
                     sequence = ('accept', 'withdraw') if 'withdraw' in actions else ('accept',)
-                    observations['initial_before_accept'] = _observation('initial_before_accept')
-                    packet['observations'].insert(
-                        packet['observations'].index(observations['accept']), observations['initial_before_accept'],
-                    )
                     await _branch(browser, journey, observations, consent_url, 'initial_before_accept', sequence, actions)
             finally:
                 await browser.close()
@@ -386,6 +424,11 @@ async def _branch(browser, journey, observations, url, first_phase, actions, sel
         for action in actions:
             result = observations[action]
             revisit = observations[f'revisit_after_{action}']
+            if (PAGE_RESOURCE_GAPS.intersection(previous['reasons'])
+                    or any(event['disposition'] != 'observed' for event in previous['requests'])):
+                # A quiet click or reload cannot recover the missing evidence from its starting page.
+                result['reasons'].append('page_resources_incomplete')
+                revisit['reasons'].append('page_resources_incomplete')
             if previous['status'] not in ('observed', 'partial'):
                 result['reasons'].append('prior_phase_unavailable')
             else:
@@ -399,24 +442,34 @@ async def _branch(browser, journey, observations, url, first_phase, actions, sel
         await context.close()
 
 
-def collect(url: str, *, authorized_origin: str, actions: Mapping[str, str] | None = None,
+def collect(url: str, *, authorized_origin: str, authorization: Mapping[str, object],
+            actions: Mapping[str, str] | None = None,
             consent_url: str | None = None, safe_request_paths: Iterable[str] = (),
             notice_selectors: Iterable[str] = (), settle_ms: int = 500,
             allow_loopback: bool = False) -> dict:
     """Collect a redacted packet after the caller has obtained owner authorization."""
+    if not isinstance(authorization, Mapping) or authorization.get('attested') is not True:
+        raise ValueError('an explicit authorization attestation is required')
     origin = _origin(authorized_origin)
     if authorized_origin != origin:
         raise ValueError('authorized origin must be an exact canonical origin without a path')
     _require_public_resolution(origin, allow_loopback is True)
     url = _approved_url(url, origin)
     consent_url = url if consent_url is None else _approved_url(consent_url, origin)
-    if actions is None:
-        actions = {}
-    if not isinstance(actions, Mapping) or not set(actions) <= set(ACTIONS):
+    if actions is not None and not isinstance(actions, Mapping):
+        raise ValueError('actions must map accept, reject or withdraw to explicit selectors')
+    actions = {} if actions is None else dict(actions)
+    if not set(actions) <= set(ACTIONS):
         raise ValueError('actions must map accept, reject or withdraw to explicit selectors')
     _strings(actions.values(), 'action selectors', limit=3, width=200)
     if 'withdraw' in actions and 'accept' not in actions:
         raise ValueError('withdrawal requires an acceptance selector')
+    interactions = authorization.get('interactions')
+    if not isinstance(interactions, (list, tuple)):
+        raise ValueError('authorization must list the attested interactions')
+    interactions = _strings(interactions, 'attested interactions', limit=3, width=8)
+    if sorted(interactions) != sorted(actions):
+        raise ValueError('attested interactions must match the configured actions')
     paths = _strings(safe_request_paths, 'safe request paths', limit=25, width=200)
     if any(not SAFE_PATH.fullmatch(path) for path in paths):
         raise ValueError('safe request paths must be literal plain paths')
@@ -425,14 +478,19 @@ def collect(url: str, *, authorized_origin: str, actions: Mapping[str, str] | No
         raise ValueError('settle_ms must be an integer from 0 to 2000')
 
     phases = ['entry', 'initial'] if url != consent_url else ['initial']
-    phases += ['reject', 'revisit_after_reject', 'accept', 'revisit_after_accept',
-               'withdraw', 'revisit_after_withdraw']
-    packet = dict(schema_version=1, collector='playwright-chromium', browser=None, authorized_origin=origin,
-                  started_at=_now(), finished_at=None, settle_ms=settle_ms,
+    phases += ['reject', 'revisit_after_reject']
+    if 'accept' in actions:
+        phases.append('initial_before_accept')
+    phases += ['accept', 'revisit_after_accept', 'withdraw', 'revisit_after_withdraw']
+    started_at = _now()
+    attestation = dict(attested=True, origin=origin, interactions=list(interactions), attested_at=started_at)
+    collector = dict(name='playwright-chromium', revision=_collector_revision())
+    packet = dict(schema_version=1, collector=collector, browser=None, authorized_origin=origin,
+                  authorization=attestation, started_at=started_at, finished_at=None, settle_ms=settle_ms,
                   observations=[_observation(phase) for phase in phases])
     try:
         asyncio.run(asyncio.wait_for(
-            _collect(packet, url, consent_url, dict(actions), frozenset(paths), selectors), 85,
+            _collect(packet, url, consent_url, actions, frozenset(paths), selectors), 85,
         ))
     except TimeoutError:
         for result in packet['observations']:

@@ -7,7 +7,7 @@ python3 -m pip install -r collector/requirements.txt
 python3 -m playwright install chromium
 ```
 
-The merchant command calls `collector.browser.collect`. Callers obtain and record the owner's authorization for the site and any interaction before invoking the collector. Use a canonical HTTPS origin and one explicit public entry URL. An optional consent URL must be on the same origin. Use `allow_loopback=True` only for an explicitly authorized literal loopback fixture. Invalid input raises `ValueError`.
+The merchant command calls `collector.browser.collect`. Callers obtain the owner's authorization for the site and every interaction, then pass an explicit attestation with the interaction names. The packet records the attestation, origin and UTC timestamp. Use a canonical HTTPS origin and one explicit public entry URL. An optional consent URL must be on the same origin. Use `allow_loopback=True` only for an explicitly authorized literal loopback fixture. Invalid input raises `ValueError`.
 
 ```python
 from collector.browser import collect
@@ -15,6 +15,7 @@ from collector.browser import collect
 packet = collect(
     "http://127.0.0.1:8123/consent/gated",
     authorized_origin="http://127.0.0.1:8123",
+    authorization={"attested": True, "interactions": ["accept", "reject", "withdraw"]},
     allow_loopback=True,
     actions={
         "accept": "button:has-text('Accept')",

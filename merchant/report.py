@@ -5,6 +5,7 @@ PHASES = {
     "initial": "Initial consent page",
     "reject": "After rejection",
     "revisit_after_reject": "Revisit after rejection",
+    "initial_before_accept": "Initial consent page before acceptance",
     "accept": "After acceptance",
     "revisit_after_accept": "Revisit after acceptance",
     "withdraw": "After withdrawal",
@@ -35,12 +36,18 @@ def render_summary(evidence: dict) -> tuple[str, bool]:
     gaps = []
     samples = []
     for phase, label in PHASES.items():
-        if phase == "entry" and phase not in observations:
+        if phase in {"entry", "initial_before_accept"} and phase not in observations:
             continue
         observed = observations.get(phase, {})
         status = observed.get("status")
         if status != "observed":
-            gaps.append(f"- **{label}.** {COVERAGE_GAPS.get(status, 'Could not check in this run.')}")
+            message = COVERAGE_GAPS.get(status, "Could not check in this run.")
+            if "page_resources_incomplete" in observed.get("reasons", ()):
+                message = (
+                    "Tracking after the choice could not be checked because delivery of "
+                    "the page's scripts was incomplete or unconfirmed."
+                )
+            gaps.append(f"- **{label}.** {message}")
         if status in {"observed", "partial"}:
             forms = observed.get("forms") or []
             fields = sum(len(form.get("fields") or []) for form in forms)
@@ -64,6 +71,9 @@ def render_summary(evidence: dict) -> tuple[str, bool]:
     ])
     lines.extend(samples or ["The collector produced no usable sample."])
     lines.extend([
+        "",
+        f"The sampling window is {evidence.get('settle_ms', 500)} ms after DOMContentLoaded "
+        "or the selected button click. Activity may occur after a quiet sample.",
         "",
         "Use a controlled environment to verify features affected by blocked requests. "
         "This sample supplies evidence for review and leaves legal applicability and conclusions open.",
