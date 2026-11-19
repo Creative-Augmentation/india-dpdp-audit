@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Iterable, Mapping
 from contextlib import AsyncExitStack
 from datetime import datetime, timezone
+from functools import partial
 from importlib.metadata import PackageNotFoundError, version
 import ipaddress
 import json
@@ -202,9 +203,8 @@ class _Journey:
         self.current = None
         self.page = None
         self.navigation = None
-        self.transport = None
 
-    async def route(self, route):
+    async def route(self, route, transport):
         request = route.request
         observation = self.current
         self.request_count += 1
@@ -235,7 +235,7 @@ class _Journey:
             await route.abort()
             return
         try:
-            await self.forward(route, record, observation)
+            await self.forward(route, transport, record, observation)
         except self.errors:
             if self.current is observation:
                 record['disposition'] = 'failed'
@@ -251,16 +251,16 @@ class _Journey:
         except self.errors:
             return False
 
-    async def forward(self, route, record, observation):
+    async def forward(self, route, transport, record, observation):
         # Fetch one hop. Suppress redirect responses before Chromium can follow them.
         headers = await route.request.all_headers()
         for name in METHOD_OVERRIDE_HEADERS:
             headers.pop(name, None)
         headers['cookie'] = headers.get('cookie', '')
         headers['accept-encoding'] = 'identity'
-        response = await self.transport.fetch(route.request.url, method=route.request.method,
-                                              headers=headers, max_redirects=0, max_retries=0,
-                                              timeout=REQUEST_MS)
+        response = await transport.fetch(route.request.url, method=route.request.method,
+                                         headers=headers, max_redirects=0, max_retries=0,
+                                         timeout=REQUEST_MS)
         try:
             if self.current is not observation:
                 await route.abort()
@@ -392,19 +392,19 @@ async def _collect(packet, url, consent_url, actions, paths, selectors):
             parts = urlsplit(origin)
             port = parts.port or (443 if parts.scheme == 'https' else 80)
             proxy = await stack.enter_async_context(PinnedProxy(f'{parts.hostname}:{port}', addresses, port))
-            journey.transport = await playwright.request.new_context(proxy={'server': proxy})
-            stack.push_async_callback(journey.transport.dispose)
+            new_transport = partial(playwright.request.new_context, proxy={'server': proxy})
             browser = await playwright.chromium.launch(args=BROWSER_ARGS, chromium_sandbox=True, timeout=8000)
             packet['browser'] = dict(engine='chromium', version=browser.version,
                                      playwright_version=playwright_version)
             try:
                 if url != consent_url:
-                    await _branch(browser, journey, observations, url, 'entry', (), actions)
+                    await _branch(browser, new_transport, journey, observations, url, 'entry', (), actions)
                 reject = ('reject',) if 'reject' in actions else ()
-                await _branch(browser, journey, observations, consent_url, 'initial', reject, actions)
+                await _branch(browser, new_transport, journey, observations, consent_url, 'initial', reject, actions)
                 if 'accept' in actions:
                     sequence = ('accept', 'withdraw') if 'withdraw' in actions else ('accept',)
-                    await _branch(browser, journey, observations, consent_url, 'initial_before_accept', sequence, actions)
+                    await _branch(browser, new_transport, journey, observations, consent_url,
+                                  'initial_before_accept', sequence, actions)
             finally:
                 await browser.close()
     except Error:
@@ -413,10 +413,17 @@ async def _collect(packet, url, consent_url, actions, paths, selectors):
                 result['reasons'].append('browser_unavailable')
 
 
-async def _branch(browser, journey, observations, url, first_phase, actions, selectors):
-    context = await browser.new_context(service_workers='block', accept_downloads=False)
-    try:
-        await context.route('**/*', journey.route)
+async def _branch(browser, new_transport, journey, observations, url, first_phase, actions, selectors):
+    async with AsyncExitStack() as stack:
+        transport = await new_transport()
+        stack.push_async_callback(transport.dispose)
+        context = await browser.new_context(service_workers='block', accept_downloads=False)
+        stack.push_async_callback(context.close)
+
+        async def route(request_route):
+            await journey.route(request_route, transport)
+
+        await context.route('**/*', route)
         await context.route_web_socket('**/*', journey.block_socket)
         journey.page = await context.new_page()
         await journey.observe(observations[first_phase], url=url)
@@ -438,8 +445,6 @@ async def _branch(browser, journey, observations, url, first_phase, actions, sel
             else:
                 revisit['reasons'].append('prior_phase_unavailable')
             previous = revisit
-    finally:
-        await context.close()
 
 
 def collect(url: str, *, authorized_origin: str, authorization: Mapping[str, object],

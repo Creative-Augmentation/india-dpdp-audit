@@ -4,6 +4,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -60,9 +61,14 @@ class InlineFixtureHandler(BaseHTTPRequestHandler):
         pass
 
 
-@unittest.skipUnless(chromium_installed(), "Playwright with Chromium is required")
+@unittest.skipUnless(os.environ.get("DPDP_RUN_BROWSER_TESTS") == "1", "Enable DPDP_RUN_BROWSER_TESTS=1")
 class Phase2IntegrationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.chromium_available = chromium_installed()
+
     def setUp(self):
+        self.assertTrue(self.chromium_available, "Install Playwright and its Chromium browser for the opted-in tests")
         lab = load_lab()
         # Keep test-only HTTP and DNS overrides inside the existing loopback fixture harness.
         async def fixture_addresses(origin):

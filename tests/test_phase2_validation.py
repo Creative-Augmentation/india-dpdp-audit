@@ -159,6 +159,10 @@ class CollectorRecordTests(unittest.TestCase):
             initial.update(status="observed", requests=[{
                 "resource_type": "script", "disposition": "observed", "status": 403, "reason": None,
                 "attempt_evidence_status": "observed", "response_evidence_status": "observed",
+            }, {
+                "resource_type": "script", "disposition": "blocked", "status": None,
+                "reason": "out_of_scope_origin", "attempt_evidence_status": "observed",
+                "response_evidence_status": "unknown",
             }])
             journey.current = initial
             journey.finish_observation()
@@ -174,6 +178,8 @@ class CollectorRecordTests(unittest.TestCase):
         evidence, = [item for item in record["evidence"] if item["id"] in gap["evidence_ids"]]
         self.assertEqual(evidence["status"], "direct")
         self.assertIn("without a label", evidence["observation"])
+        self.assertEqual(gap["confidence"], "medium")
+        self.assertIn("sampled while 1 page resource was blocked", gap["observation"])
         summary, usable = render_summary(packet, record)
         self.assertTrue(usable)
         self.assertLess(summary.index("## Observed gaps"), summary.index("## Open questions"))

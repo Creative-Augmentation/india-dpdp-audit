@@ -1,6 +1,6 @@
 """Summarize the audit record and its bounded browser sample."""
 
-from collector.audit_record import PHASES
+from collector.audit_record import PHASES, approved_path_facts
 
 
 def render_summary(evidence: dict, audit_record: dict) -> tuple[str, bool]:
@@ -26,10 +26,11 @@ def render_summary(evidence: dict, audit_record: dict) -> tuple[str, bool]:
             fields = sum(len(form.get("fields") or []) for form in forms)
             requests = observed.get("requests") or []
             blocked = sum(request.get("disposition") == "blocked" for request in requests)
-            samples.append(
+            sample = (
                 f"- **{label}.** {len(forms)} sampled forms, {fields} sampled fields, "
                 f"{len(requests)} recorded requests, {blocked} marked blocked."
             )
+            samples.append(" ".join([sample, *approved_path_facts(observed)]))
 
     lines = ["# Website evidence summary", ""]
     if gaps:

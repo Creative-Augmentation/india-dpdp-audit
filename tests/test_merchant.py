@@ -81,6 +81,16 @@ class MerchantTests(unittest.TestCase):
         self.collect.assert_not_called()
 
     def test_partial_sample_keeps_evidence_and_reports_open_questions(self):
+        response = {"path": "/sample", "status": 204, "disposition": "observed",
+                    "response_evidence_status": "observed"}
+        initial, reject = self.collect.return_value["observations"]
+        initial["requests"].append(response)
+        reject.update(status="partial", requests=[response, {
+            "path": "/sample", "disposition": "blocked", "response_evidence_status": "unknown",
+        }, {**response, "path": None}])
+        self.collect.return_value["observations"].append({
+            "phase": "revisit_after_reject", "status": "observed", "requests": [response, response],
+        })
         status = self.invoke("--authorized", "--reject-selector", "#deny", "--allow-request-path", "/sample")
         self.assertEqual(status, 0)
         self.collect.assert_called_once_with(
@@ -99,6 +109,12 @@ class MerchantTests(unittest.TestCase):
         self.assertLess(report.index("Open questions"), report.index("Browser sample"))
         self.assertIn("After rejection.** Could not verify", report)
         self.assertIn("1 marked blocked", report)
+        fact = "Approved path /sample: 1 observed response (HTTP 204) after rejection."
+        revisit_fact = "Approved path /sample: 2 observed responses (HTTP 204) on revisit after rejection."
+        samples = report.split("## Browser sample")[1]
+        self.assertIn(fact, next(line for line in samples.splitlines() if "**After rejection.**" in line))
+        self.assertIn(revisit_fact, next(line for line in samples.splitlines() if "**Revisit after rejection.**" in line))
+        self.assertNotIn("Approved path", next(line for line in samples.splitlines() if "**Initial consent page.**" in line))
         self.assertNotIn("untrusted text", report)
         self.assertNotRegex(report.lower(), r"\b(?:compliant|no gaps)\b")
         audit = self.output / "audit.json"
@@ -106,6 +122,12 @@ class MerchantTests(unittest.TestCase):
         record = json.loads(audit.read_text())
         validate_record(self, record)
         self.assertTrue(all(item["evidence_status"] == "not_verified" for item in record["findings"]))
+        purpose = next(item for item in record["findings"] if item["id"] == "F-purpose")
+        self.assertEqual(purpose["priority"], "informational")
+        self.assertEqual(purpose["evidence_ids"], ["E-reject", "E-revisit_after_reject"])
+        evidence_text = {item["id"]: item["observation"] for item in record["evidence"]}
+        self.assertIn(fact, evidence_text["E-reject"])
+        self.assertIn(revisit_fact, evidence_text["E-revisit_after_reject"])
 
     def test_summary_includes_accept_baseline_question_and_sampling_window(self):
         self.collect.return_value["observations"].append(
