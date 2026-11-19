@@ -1,0 +1,1 @@
+"""Local merchant evidence command."""
