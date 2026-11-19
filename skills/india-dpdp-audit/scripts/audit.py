@@ -99,8 +99,11 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
     window_start = date.fromisoformat(scope.get("audit_window_start", record["audit_date"]))
     if window_start > audit_date:
         errors.append("scope.audit_window_start is after the audit date")
-    if (audit_date - window_start).days + 1 > MAX_DEFAULT_WINDOW_DAYS and "audit_window_reason" not in scope:
-        errors.append(f"scope.audit_window_reason is required for an audit window longer than {MAX_DEFAULT_WINDOW_DAYS} days")
+    if (audit_date - window_start).days + 1 > MAX_DEFAULT_WINDOW_DAYS:
+        if "audit_window_reason" not in scope:
+            errors.append(f"scope.audit_window_reason is required for an audit window longer than {MAX_DEFAULT_WINDOW_DAYS} days")
+        elif not legal_phases.has_explanation(scope["audit_window_reason"]):
+            errors.append("scope.audit_window_reason must explain the extended window in at least six distinct words")
     modes = set(scope["modes"])
     domains = set(scope["authorized_domains"])
     repositories = {
@@ -323,7 +326,7 @@ def oldest_linked_evidence_date(record):
     )
 
 
-def render_summary(record, findings):
+def render_summary(record, findings, legal_warning_count):
     """Summarize recorded results within a fixed reading budget."""
     lines = ["", "## Summary", ""]
     groups = {
@@ -381,6 +384,8 @@ def render_summary(record, findings):
         lines.append("- The record shows no completed journey inspections.")
     preview(unknowns, lambda item: excerpt(item["title"]), 2)
     preview(missed, lambda item: f"{excerpt(item['name'])} ({item['status'].replace('_', ' ')})", 2)
+    if legal_warning_count:
+        lines.extend(("", f"**Legal phase warnings** · {legal_warning_count}. See the legal ledger."))
 
     successes = groups["meets_sampled_check"]
     check_label = "check" if len(successes) == 1 else "checks"
@@ -460,7 +465,9 @@ def render(record):
         record["findings"],
         key=lambda item: (EVIDENCE_STATUS_ORDER[item["evidence_status"]], PRIORITY[item["priority"]]),
     )
-    lines.extend(render_summary(record, findings))
+    ledger = record["legal_ledger"]
+    legal_warnings = [legal_phases.entry_warnings(source, record["audit_date"]) for source in ledger]
+    lines.extend(render_summary(record, findings, sum(map(len, legal_warnings))))
 
     scope = record["scope"]
     heading("Scope", scope)
@@ -529,10 +536,13 @@ def render(record):
             values("Owner statement IDs", claim["evidence_ids"])
         values("Unknowns", flow["unknowns"])
 
-    heading("Legal ledger", record["legal_ledger"])
-    for source in record["legal_ledger"]:
+    heading("Legal ledger", ledger)
+    for source, warnings in zip(ledger, legal_warnings):
         entry(source, source["instrument"] + " — " + source["provision"])
-        field("Official source", source["source_url"])
+        source_url = source["source_url"]
+        if warnings:
+            source_url += " (not in pinned official registry)"
+        field("Source", source_url)
         field("Verified on", source["verified_on"])
         field("Published on", source["published_on"] or "Unknown")
         field("Effective on", source["effective_on"] or "Unresolved or not recorded")
@@ -542,7 +552,7 @@ def render(record):
             field("Preparation date", source["preparation_on"])
         field("Status at audit date", source["status"])
         field("Notes", source["notes"])
-        for warning in legal_phases.entry_warnings(source, record["audit_date"]):
+        for warning in warnings:
             field("Legal phase review", warning)
 
     heading("Evidence register", record["evidence"])
@@ -685,6 +695,10 @@ def main(argv=None):
     elif args.command == "diff":
         print(json.dumps(diff(*records), indent=2))
     else:
+        record = records[0]
+        for entry in record["legal_ledger"]:
+            for warning in legal_phases.entry_warnings(entry, record["audit_date"]):
+                print(f"{args.audit}: {warning}", file=sys.stderr)
         print("Audit record is valid.")
     return 0
 

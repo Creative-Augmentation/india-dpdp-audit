@@ -7,16 +7,16 @@ provisions. Descriptive prose and subsection ranges require separate ledger
 entries with citation-only provision fields. Subsections of provisions
 pinned as a whole inherit the phase of the parent. This checks the commencement
 window, without determining substantive applicability or verifying new law.
-An unidentified instrument cited to MeitY, eGazette or India Code requires
-uncertain status. The host alone does not determine the instrument family.
-Other unidentified sources retain generic date validation and an authority warning.
+An unidentified instrument cited to an official host or using a numbered citation
+within the DPDP ranges requires uncertain status. The host and numbering alone
+do not determine the instrument family.
 """
 
 from datetime import date
 import json
 from pathlib import Path
 import re
-from unicodedata import decimal, normalize
+from unicodedata import category, decimal, normalize
 from urllib.parse import unquote, urlsplit
 
 
@@ -25,7 +25,8 @@ _REGISTRY = json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
 _ACRONYM = r"d\.?\s*p\.?\s*d\.?\s*p\.?(?:\s*[ar]\.?)?(?![a-z])"
 _HINDI_NAME = r"डिजिटल\s+(?:वैयक्तिक|व्यक्तिगत)\s+(?:पहचान\s+)?(?:डेटा|डाटा|दत्तांश)\s+संरक्षण"
 _NAME = rf"(?:\b{_ACRONYM}|\bdigital\s+personal\s+data\s+protection\b|{_HINDI_NAME})"
-_SHORT_ACT = r"\bdata\s+protection\s+act[,\s-]*2023\b"
+_SHORT_ACT = r"\b(?:personal\s+)?data\s+protection\s+act(?:[,\s-]*2023)?\b"
+_SHORT_RULES = r"\b(?:personal\s+)?data\s+protection\s+rules(?:[,\s-]*2025)?\b"
 _ACT_NUMBER = r"\bact\s*(?:no\.?|number)?\s*22\s*of\s*2023\b"
 _GSR = r"g\.?\s*s\.?\s*r\.?\s*"
 _RULES_OF = re.compile(
@@ -40,12 +41,12 @@ _INSTRUMENT = {
     "rules": re.compile(
         rf"(?:\bd\.?\s*p\.?\s*d\.?\s*p\.?\s*r\.?(?![a-z])"
         rf"|{_NAME}\s*(?:\(dpdp\)\s*)?(?:\brules\b|नियमावली|नियम)"
-        rf"|\b{_GSR}(?:846|892)\b)", re.I
+        rf"|{_SHORT_RULES}|\b{_GSR}(?:846|892)\b)", re.I
     ),
 }
-_DPDP_HINT = re.compile(rf"(?:{_NAME}|{_SHORT_ACT}|{_ACT_NUMBER})", re.I)
-_OFFICIAL_HOSTS = ("meity.gov.in", "egazette.gov.in", "egazette.nic.in",
-                   "indiacode.nic.in", "indiacode.gov.in")
+_DPDP_HINT = re.compile(rf"(?:{_NAME}|{_SHORT_ACT}|{_SHORT_RULES}|{_ACT_NUMBER})", re.I)
+_OFFICIAL_HOSTS = ("meity.gov.in", "meity.nic.in", "egazette.gov.in", "egazette.nic.in",
+                   "indiacode.gov.in", "indiacode.nic.in", "pib.gov.in", "pib.nic.in")
 _OTHER_INSTRUMENT = re.compile(
     rf"^(?:spdi\s+rules\b|{_GSR}313\b"
     r"|information technology(?:\s+\([^()]+\))?\s+rules\b.*\b2011\b"
@@ -63,6 +64,8 @@ _CITATION = re.compile(
     re.I,
 )
 _SEPARATOR = re.compile(r"\s*(?:[,;&]\s*(?:and\b)?|\band\b| और )\s*", re.I)
+# Selected lookalikes for the letters used in DPDP, DPDPA and DPDPR.
+_CONFUSABLES = str.maketrans("ДдԀԁРрΡρАаΑαᎡꓣ", "DdDdPpPpAaAaRR")
 
 
 def _url_identity(url):
@@ -86,8 +89,18 @@ _SOURCE = {
 }
 
 
+def _without_format_characters(text):
+    return "".join(char for char in text if category(char) != "Cf")
+
+
 def _normalized(text):
-    return "".join(str(decimal(char, char)) for char in normalize("NFKC", text))
+    folded = normalize("NFKC", _without_format_characters(text)).translate(_CONFUSABLES)
+    return "".join(str(decimal(char, char)) for char in folded)
+
+
+def has_explanation(text):
+    words = re.findall(r"[^\W\d_]+", _without_format_characters(text).casefold())
+    return len(set(words)) >= 6
 
 
 def _whole_phases(instrument):
@@ -101,6 +114,10 @@ def _whole_phases(instrument):
 
 
 _WHOLE = {instrument: _whole_phases(instrument) for instrument in ("act", "rules")}
+_PROVISION_NUMBERS = {
+    kind: whole.keys() | {int(number) for number in _REGISTRY[kind]["split_provisions"]}
+    for kind, whole in _WHOLE.items()
+}
 
 
 def _provision_phases(kind, number, parts):
@@ -124,6 +141,26 @@ def _is_official_host(url_identity):
     return any(host == name or host.endswith("." + name) for name in _OFFICIAL_HOSTS)
 
 
+def _citation_kind(label):
+    return "rules" if label.lower().startswith("r") or label == "नियम" else "act"
+
+
+def _could_cite_dpdp(provision_text):
+    kind = None
+    for term in _SEPARATOR.split(provision_text.strip()):
+        match = _CITATION.fullmatch(term)
+        if not match:
+            continue
+        label, number, parts, end = match.groups()
+        if label:
+            kind = _citation_kind(label)
+        if kind and not (end and parts):
+            numbers = range(int(number), int(end or number) + 1)
+            if not _PROVISION_NUMBERS[kind].isdisjoint(numbers):
+                return True
+    return False
+
+
 def _classify(entry):
     instrument = _normalized(entry["instrument"])
     provision_text = _normalized(entry["provision"])
@@ -137,8 +174,11 @@ def _classify(entry):
     if not instruments and not source:
         if url_hint or _DPDP_HINT.search(instrument) or _DPDP_HINT.search(provision_text):
             return set(), "unmapped_dpdp"
-        if _is_official_host(url_identity) and not _OTHER_INSTRUMENT.search(instrument):
-            return set(), "unidentified_official"
+        if not _OTHER_INSTRUMENT.search(instrument):
+            if _is_official_host(url_identity):
+                return set(), "unidentified_official"
+            if _could_cite_dpdp(provision_text):
+                return set(), "unidentified_numbered"
         return set(), None
     if re.search(r"\bdraft\b|मसौदा", instrument, re.I) or (source and instruments and source not in instruments):
         return set(), "unmapped_dpdp"
@@ -154,7 +194,7 @@ def _classify(entry):
             continue
         explicit, number, parts, end = match.groups()
         if explicit:
-            kind = "rules" if explicit.lower().startswith("r") or explicit == "नियम" else "act"
+            kind = _citation_kind(explicit)
         if kind not in instruments:
             unmapped = True
             continue
@@ -186,6 +226,9 @@ def entry_warnings(entry, audit_date=None):
     if unmapped == "unidentified_official":
         return [f'{entry["id"]}: Cannot identify the instrument from the official citation. '
                 'Supply its specific title or notification identifier and verify the source.']
+    if unmapped == "unidentified_numbered":
+        return [f'{entry["id"]}: Citation could refer to a DPDP provision. '
+                'Supply the specific instrument title or notification identifier and verify the source.']
     if unmapped:
         return [f'{entry["id"]}: DPDP commencement citation is wholly or partly unmapped. '
                 'Check the official source and use citation-only provisions.']
@@ -211,6 +254,9 @@ def check_entry(entry, audit_date):
             if unmapped == "unidentified_official":
                 return [f"{identifier}: Cannot identify the instrument from the official citation. "
                         "Identify the instrument or retain an uncertain entry without a commencement date."]
+            if unmapped == "unidentified_numbered":
+                return [f"{identifier}: Citation could refer to a DPDP provision. "
+                        "Identify the instrument or retain an uncertain entry without a commencement date."]
             reason = ("has an unmapped DPDP provision" if unmapped
                       else "spans multiple DPDP commencement phases")
             return [f"{identifier}: {reason}. Split the citations into dated entries "
@@ -235,9 +281,8 @@ def check_entry(entry, audit_date):
     elif status == "future" and audit_day >= latest:
         errors.append(f"{identifier}: DPDP provision cannot be future on or after {latest}")
     if _uncertain_after_latest(entry, audit_date, phases, unmapped):
-        notes = entry.get("notes", "").strip()
-        distinct_words = set(re.findall(r"[^\W\d_]+", notes.casefold()))
-        if len(distinct_words) < 6 or not _UNCERTAINTY_REASON.search(notes):
+        notes = entry.get("notes", "")
+        if not has_explanation(notes) or not _UNCERTAINTY_REASON.search(_without_format_characters(notes)):
             errors.append(f"{identifier}: uncertainty after the latest DPDP commencement requires "
                           "notes explaining the unresolved source or legal issue.")
     return errors

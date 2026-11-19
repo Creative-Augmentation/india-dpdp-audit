@@ -102,6 +102,29 @@ class AuditRecordTests(unittest.TestCase):
         self.record["audit_date"] = "2027-05-15"
         self.assertInvalid("L-notice: DPDP provision cannot be future")
 
+    def test_legal_phase_warnings_in_validate_and_report(self):
+        entry = self.record["legal_ledger"][0]
+        entry.update(instrument="The Rules, 2025", status="uncertain",
+                     source_url="https://www.example-lawblog.test/india/rules-2025.pdf")
+        self.record["findings"][0]["legal_status"] = "uncertain"
+        self.record["legal_ledger"].append(dict(entry, id="L-opaque"))
+        warning, = audit.legal_phases.entry_warnings(entry, self.record["audit_date"])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "audit.json"
+            path.write_text(json.dumps(self.record), encoding="utf-8")
+            result = self.cli("validate", path)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "Audit record is valid.\n")
+            self.assertIn(warning, result.stderr)
+            self.assertIn("L-opaque", result.stderr)
+
+        report = audit.render(self.record)
+        self.assertIn("**Legal phase warnings** · 2", report.split("## Scope", 1)[0])
+        self.assertIn("**Source** ` https://www.example-lawblog.test/india/rules-2025.pdf ` "
+                      "(not in pinned official registry)", report)
+        self.assertIn("**Legal phase review**", report)
+        self.assertNotIn("**Official source**", report)
+
     def test_future_duty_requires_a_commencement_or_preparation_date(self):
         entry = self.record["legal_ledger"][0]
         entry.pop("preparation_on")
@@ -182,8 +205,10 @@ class AuditRecordTests(unittest.TestCase):
         self.assertEqual(audit.validate(self.record, self.validator), [])
         self.record["scope"]["audit_window_start"] = "2026-09-26"
         self.assertInvalid("scope.audit_window_reason is required")
-        self.record["scope"]["audit_window_reason"] = "   "
-        self.assertInvalid("audit_window_reason")
+        for reason in ("   ", "x", ".", "\u200b", "o\u200bn\u200bl\u200by a word", "repeat " * 6):
+            with self.subTest(reason=reason):
+                self.record["scope"]["audit_window_reason"] = reason
+                self.assertInvalid("audit_window_reason")
         self.record["scope"]["audit_window_reason"] = "Two scheduled rounds of evidence gathering"
         self.assertIn("Audit window 2026-09-26 through 2026-10-27", self.summary())
         self.assertIn("**Extended audit window** · Two scheduled rounds", self.summary())
