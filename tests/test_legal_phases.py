@@ -224,6 +224,21 @@ class LegalPhaseTests(unittest.TestCase):
                 self.assertEqual(legal.check_entry(e, "2026-10-27"), [])
                 self.assertTrue(legal.entry_warnings(e))
 
+    def test_ambiguous_prose_citations_on_unofficial_sources_require_uncertainty(self):
+        for provision in ("Rule 3 on notice", "Rule 3 read with Rule 4", "Rule 03", "Rule-3", "See Rule 24 and Rule 03"):
+            with self.subTest(provision=provision):
+                entry = self.entry(provision, instrument="Government publication", effective_on="2025-11-13",
+                                   source_url="https://law.example.test/article")
+                self.assertIn("Citation could refer to a DPDP provision", legal.check_entry(entry, "2026-10-27")[0])
+                entry.update(status="uncertain", effective_on=None)
+                self.assertEqual(legal.check_entry(entry, "2026-10-27"), [])
+
+    def test_yearless_short_names_without_indian_context_are_ambiguous(self):
+        for instrument, provision in (("Data Protection Act", "Section 5"), ("Data Protection Rules", "Rule 3")):
+            with self.subTest(instrument=instrument):
+                entry = self.entry(provision, instrument=instrument, source_url="https://law.example.test/article")
+                self.assertIn("Citation could refer to a DPDP provision", legal.check_entry(entry, "2026-10-27")[0])
+
     def test_stale_future_duty_cannot_use_preparation_or_latest_date_to_bypass_guard(self):
         for instrument, expected in (
             ("Data Protection Rules, 2025", "cannot be future"),
@@ -269,6 +284,21 @@ class LegalPhaseTests(unittest.TestCase):
                                effective_on="2011-04-11")
                 self.assertEqual(legal.entry_warnings(e), [])
                 self.assertEqual(legal.check_entry(e, "2026-10-27"), [])
+
+    def test_sectoral_and_foreign_instruments_do_not_inherit_dpdp_dates(self):
+        for instrument, provision, source_url in (
+            ("Consumer Protection (E-Commerce) Rules 2020", "r.4", "https://egazette.gov.in/opaque.pdf"),
+            ("Consumer Protection Act 2019", "s.2", "https://indiacode.gov.in/opaque.pdf"),
+            ("Payment and Settlement Systems Act 2007", "s.18", "https://indiacode.gov.in/opaque.pdf"),
+            ("PSS Act 2007", "Section 18 on directions", "https://law.example.test/article"),
+            ("Legal Metrology (Packaged Commodities) Rules 2011", "r.6", "https://egazette.gov.in/opaque.pdf"),
+            ("Legal Metrology Rules 2011", "Rule 6 on declarations", "https://law.example.test/article"),
+            ("UK Data Protection Act 2018", "Section 2", "https://law.example.test/uk"),
+            ("Singapore Personal Data Protection Act 2012", "Section 13", "https://law.example.test/singapore"),
+        ):
+            with self.subTest(instrument=instrument, provision=provision):
+                entry = self.entry(provision, instrument=instrument, source_url=source_url, effective_on="2020-01-01")
+                self.assertEqual(legal.check_entry(entry, "2026-10-27"), [])
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ import argparse
 import json
 import re
 import sys
+from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from graphlib import CycleError, TopologicalSorter
 from importlib.util import module_from_spec, spec_from_file_location
@@ -20,7 +21,9 @@ SCHEMA_PATH = SCRIPT_DIR.parent / "assets" / "audit.schema.json"
 LEGAL_PHASES_SPEC = spec_from_file_location("legal_phases", SCRIPT_DIR / "legal_phases.py")
 legal_phases = module_from_spec(LEGAL_PHASES_SPEC)
 LEGAL_PHASES_SPEC.loader.exec_module(legal_phases)
-PRIORITY = {"high": 0, "medium": 1, "low": 2, "informational": 3}
+PRIORITY = {"critical": 0, "high": 1, "medium": 2, "low": 3, "informational": 4}
+IMPACT_PRIORITIES = {"critical", "high"}
+UNSUPPORTED_CONCLUSION = re.compile(r"(?<![\w-])(?:compliant|no[\s-]+gaps)\b", re.IGNORECASE)
 EVIDENCE_STATUS_ORDER = {
     "observed_gap": 0, "not_verified": 1, "meets_sampled_check": 2, "not_applicable": 3,
 }
@@ -137,6 +140,11 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
     def has_direct_evidence(items):
         return any(item["status"] == "direct" for item in items)
 
+    def check_open_question(label, *texts):
+        if any(UNSUPPORTED_CONCLUSION.search(text) for text in texts):
+            errors.append(f"{label}: unsupported conclusion over an unverified item. State what could not be verified.")
+
+    has_open_questions = not record["coverage"]
     capture_times = {}
     capture_dates = {}
     for evidence in record["evidence"]:
@@ -169,6 +177,9 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
         evidence = references(journey, "evidence_ids", "evidence")
         if journey["status"] == "inspected" and not has_direct_evidence(evidence):
             errors.append(f"{journey['id']}: an inspected journey requires direct evidence")
+        if journey["status"] != "inspected":
+            has_open_questions = True
+            check_open_question(journey["id"], journey["name"], journey["notes"])
 
     for flow in record["data_map"]:
         identifier = flow["id"]
@@ -177,6 +188,9 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
         evidence = references(flow, "evidence_ids", "evidence")
         if flow["observed_facts"] and not has_direct_evidence(evidence):
             errors.append(f"{identifier}: observed facts require direct evidence")
+        if flow["unknowns"]:
+            has_open_questions = True
+            check_open_question(identifier, *flow["unknowns"])
         for claim in flow["owner_claims"]:
             evidence = references({"id": identifier, **claim}, "evidence_ids", "evidence")
             if any(item["kind"] != "owner_statement" for item in evidence):
@@ -218,8 +232,20 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
         evidence_status = finding["evidence_status"]
         applicability = finding["applicability"]
         legal_status = finding["legal_status"]
-        if evidence_status == "observed_gap" and not has_direct_evidence(evidence):
+        direct = has_direct_evidence(evidence)
+        if evidence_status == "observed_gap" and not direct:
             errors.append(f"{identifier}: observed_gap requires direct evidence")
+        if finding["priority"] in IMPACT_PRIORITIES:
+            if not direct:
+                errors.append(f"{identifier}: {finding['priority']} priority requires direct evidence")
+            elif evidence_status == "not_verified":
+                errors.append(f"{identifier}: not_verified findings cannot have high or critical priority")
+        if evidence_status == "not_verified":
+            has_open_questions = True
+            check_open_question(identifier, finding["title"], finding["observation"], finding["applicability_reason"])
+        elif applicability == "unknown":
+            has_open_questions = True
+            check_open_question(identifier, finding["applicability_reason"])
         if evidence_status in {"meets_sampled_check", "not_applicable"}:
             if not evidence or any(item["status"] != "direct" or item["kind"] == "owner_statement" for item in evidence):
                 errors.append(f"{identifier}: {evidence_status} requires only direct non-owner evidence")
@@ -232,6 +258,10 @@ def check_consistency(record: dict[str, Any]) -> list[str]:
             errors.append(f"{identifier}: {legal_status} requires ledger entries with the same status")
         if legal_status == "good_practice" and sources:
             errors.append(f"{identifier}: good_practice cannot cite binding duties as its classification")
+
+    if has_open_questions:
+        check_open_question("scope.subject", scope["subject"])
+        check_open_question("scope.limitations", *scope["limitations"])
 
     dependencies = {}
     findings_with_actions = set()
@@ -485,6 +515,34 @@ def render(record):
     for limitation in scope["limitations"]:
         field("Limitation", limitation)
 
+    open_findings = [item for item in findings if item["evidence_status"] == "not_verified"]
+    missed_journeys = [item for item in record["coverage"] if item["status"] != "inspected"]
+    unknown_flows = [item for item in record["data_map"] if item["unknowns"]]
+    if open_findings or missed_journeys or unknown_flows:
+        lines.extend(("", "## Open questions", ""))
+        requests = defaultdict(list)
+        for action in record["actions"]:
+            if action["kind"] == "evidence_request":
+                for finding_id in action["finding_ids"]:
+                    requests[finding_id].append(action["summary"])
+        inferred_ids = {item["id"] for item in record["evidence"] if item["status"] == "inferred"}
+        for finding in open_findings:
+            entry(finding, finding["title"])
+            field("Could not verify", finding["observation"])
+            if inferred_ids.intersection(finding["evidence_ids"]):
+                field("Watch", "The linked inference needs direct confirmation.")
+            for summary in requests[finding["id"]]:
+                field("Next step", summary)
+        for journey in missed_journeys:
+            entry(journey, journey["name"])
+            field("Could not verify", journey["notes"])
+            field("Next step", "Obtain authorized access or evidence that addresses the coverage notes and complete the inspection.")
+        for flow in unknown_flows:
+            entry(flow)
+            for question in flow["unknowns"]:
+                field("Could not verify", question)
+                field("Next step", f"Request a redacted record or authorized check for {flow['journey_id']} that resolves this question.")
+
     heading("Findings", findings, "No findings were recorded. See the summary for journey coverage and evidence limits.")
     for finding in findings:
         entry(finding, finding["title"])
@@ -540,7 +598,7 @@ def render(record):
     for source, warnings in zip(ledger, legal_warnings):
         entry(source, source["instrument"] + " — " + source["provision"])
         source_url = source["source_url"]
-        if warnings:
+        if warnings and not legal_phases.is_pinned_source(source_url):
             source_url += " (not in pinned official registry)"
         field("Source", source_url)
         field("Verified on", source["verified_on"])

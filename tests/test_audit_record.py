@@ -16,6 +16,7 @@ except ImportError as error:
 SKILL = Path(__file__).resolve().parents[1] / "skills" / "india-dpdp-audit"
 CLI = SKILL / "scripts" / "audit.py"
 EXAMPLE = SKILL / "assets" / "example-audit.json"
+CONTROL = SKILL / "assets" / "example-control-audit.json"
 spec = importlib.util.spec_from_file_location("audit", CLI)
 audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
@@ -125,6 +126,15 @@ class AuditRecordTests(unittest.TestCase):
         self.assertIn("**Legal phase review**", report)
         self.assertNotIn("**Official source**", report)
 
+    def test_pinned_source_keeps_its_registry_status_when_the_citation_warns(self):
+        entry = self.record["legal_ledger"][0]
+        entry.update(provision="Rule 3 on notice", status="uncertain")
+        self.record["findings"][0]["legal_status"] = "uncertain"
+        self.assertEqual(audit.validate(self.record, self.validator), [])
+        report = audit.render(self.record)
+        self.assertIn("wholly or partly unmapped", report)
+        self.assertNotIn("(not in pinned official registry)", report)
+
     def test_future_duty_requires_a_commencement_or_preparation_date(self):
         entry = self.record["legal_ledger"][0]
         entry.pop("preparation_on")
@@ -169,6 +179,53 @@ class AuditRecordTests(unittest.TestCase):
         self.record["evidence"][0]["status"] = "limited"
         self.record["findings"][0]["evidence_ids"] = ["E-form", "E-owner"]
         self.assertInvalid("observed_gap requires direct evidence")
+
+    def test_inferred_evidence_cannot_confirm_a_gap(self):
+        self.record["evidence"].append(dict(self.record["evidence"][0], id="E-inferred", status="inferred"))
+        self.record["findings"][0]["evidence_ids"] = ["E-owner", "E-inferred"]
+        self.assertInvalid("observed_gap requires direct evidence")
+
+    def test_high_and_critical_require_linked_direct_evidence(self):
+        finding = self.record["findings"][1]
+        finding["evidence_ids"] = ["E-owner"]
+        for priority in ("high", "critical"):
+            with self.subTest(priority=priority):
+                finding["priority"] = priority
+                self.assertInvalid(f"{priority} priority requires direct evidence")
+
+    def test_direct_evidence_of_a_different_fact_does_not_raise_an_open_question(self):
+        finding = self.record["findings"][1]
+        finding["priority"] = "high"
+        self.assertInvalid("not_verified findings cannot have high or critical priority")
+
+    def test_observed_gaps_can_be_critical(self):
+        finding = self.record["findings"][0]
+        observation = "The sampled public response displayed a synthetic customer's personal data without sign-in."
+        self.record["evidence"][0]["observation"] = observation
+        finding.update(title="Unauthenticated personal-data exposure", observation=observation,
+                       priority="critical", evidence_ids=["E-form"], legal_status="good_practice", legal_ids=[])
+        self.assertEqual(audit.validate(self.record, self.validator), [])
+        self.assertIn("critical priority", audit.render(self.record))
+
+    def test_unknown_item_cannot_claim_compliance_or_no_gaps(self):
+        finding = self.record["findings"][1]
+        for wording in ("The site is compliant", "No gaps were found"):
+            with self.subTest(wording=wording):
+                finding["observation"] = wording
+                self.assertInvalid("F-deletion: unsupported conclusion")
+        finding["observation"] = "Could not verify deletion."
+        self.record["scope"]["limitations"].append("No gaps were found")
+        self.assertInvalid("scope.limitations: unsupported conclusion")
+
+    def test_control_has_zero_gaps_and_lists_open_questions_with_next_steps(self):
+        self.record = audit.read_json(CONTROL)
+        self.assertIn("**Observed gaps** · 0 recorded in the sample.", self.summary())
+        report = audit.render(self.record)
+        questions = report.split("## Open questions\n", 1)[1].split("\n## ", 1)[0]
+        self.assertEqual(questions.count("**Could not verify**"), 3)
+        self.assertEqual(questions.count("**Next step**"), 3)
+        self.assertIn("**Watch**", questions)
+        self.assertIn("Overall compliance remains undetermined", report)
         self.record["findings"][0]["evidence_ids"] = []
         self.assertInvalid("observed_gap requires direct evidence")
 
