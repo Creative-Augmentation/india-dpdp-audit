@@ -8,11 +8,12 @@ import sys
 import tempfile
 import threading
 import unittest
-from http.server import ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 ACTIONS = {
     "reject": 'button[data-choice=denied]:has-text("Reject")',
     "accept": "button[data-choice=granted]",
@@ -27,6 +28,18 @@ def load_lab():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+class InlineFixtureHandler(BaseHTTPRequestHandler):
+    def reply(self, status, content_type, body=b""):
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_request(self, code="-", size="-"):
+        pass
 
 
 @unittest.skipUnless(os.environ.get("DPDP_RUN_BROWSER_TESTS") == "1", "live browser tests require opt-in")
@@ -129,10 +142,10 @@ class Phase2IntegrationTests(unittest.TestCase):
 
         foreign = self.start_server(Foreign)
 
-        class Consent(lab.FixtureHandler):
+        class Consent(InlineFixtureHandler):
             def do_GET(self):
                 if self.path != "/choice":
-                    return super().do_GET()
+                    return self.send_error(404)
                 script = ""
                 if "visited=1" not in self.headers.get("Cookie", ""):
                     script = f'<script src="{foreign}/tag.js"></script>'
@@ -199,10 +212,9 @@ class Phase2IntegrationTests(unittest.TestCase):
         self.assertIn("empty_document", initial["reasons"])
 
     def test_method_override_headers_are_omitted_from_forwarding(self):
-        lab = load_lab()
         observed_headers = []
 
-        class Headers(lab.FixtureHandler):
+        class Headers(InlineFixtureHandler):
             def do_GET(self):
                 if self.path == "/":
                     page = b"""<!doctype html><p>Sample</p><script>
@@ -215,7 +227,7 @@ class Phase2IntegrationTests(unittest.TestCase):
                     observed_headers.append({name.lower(): value for name, value in self.headers.items()})
                     self.reply(204, "text/plain")
                 else:
-                    super().do_GET()
+                    self.send_error(404)
 
         initial = self.collect("/", origin=self.start_server(Headers))["initial"]
         self.assertEqual(initial["status"], "observed")
