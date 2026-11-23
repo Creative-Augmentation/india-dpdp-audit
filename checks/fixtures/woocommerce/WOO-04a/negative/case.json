@@ -1,0 +1,7 @@
+{
+  "expect": "ok",
+  "refs": [
+    "artifact:woocommerce-roles.json:/assignments",
+    "artifact:woocommerce-approved-roles.json:/approved_roles"
+  ]
+}

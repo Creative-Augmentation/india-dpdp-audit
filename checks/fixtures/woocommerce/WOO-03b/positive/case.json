@@ -1,0 +1,6 @@
+{
+  "expect": "gap",
+  "refs": [
+    "artifact:woocommerce-plugin.php#L3-L3"
+  ]
+}
