@@ -1,0 +1,7 @@
+{
+  "expect": "ok",
+  "refs": [
+    "artifact:shopify-subject.json:/distribution",
+    "artifact:shopify.app.toml#L4-L6"
+  ]
+}

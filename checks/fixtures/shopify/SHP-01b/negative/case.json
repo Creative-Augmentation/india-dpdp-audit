@@ -1,0 +1,6 @@
+{
+  "expect": "ok",
+  "refs": [
+    "artifact:shopify-theme.js#L1-L3"
+  ]
+}

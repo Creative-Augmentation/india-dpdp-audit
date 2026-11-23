@@ -1,0 +1,18 @@
+{
+  "platform": "shopify",
+  "pixels": [
+    {
+      "purposes": [
+        "marketing"
+      ],
+      "customer_privacy": {
+        "marketing": true
+      }
+    },
+    {
+      "purposes": [
+        "preferences"
+      ]
+    }
+  ]
+}

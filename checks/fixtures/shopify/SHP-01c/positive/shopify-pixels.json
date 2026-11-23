@@ -1,0 +1,11 @@
+{
+  "platform": "shopify",
+  "pixels": [
+    {
+      "purposes": [
+        "analytics"
+      ],
+      "config": "shopify.extension.toml"
+    }
+  ]
+}

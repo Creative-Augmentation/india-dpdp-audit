@@ -1,0 +1,6 @@
+{
+  "platform": "shopify",
+  "optional_paths": [
+    "/events/rack-meter"
+  ]
+}
