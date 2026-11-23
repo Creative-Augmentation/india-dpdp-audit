@@ -1,0 +1,6 @@
+{
+  "expect": "gap",
+  "refs": [
+    "artifact:shopify-checkout.json:/marketing_opt_in_default"
+  ]
+}
