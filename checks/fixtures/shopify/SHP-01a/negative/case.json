@@ -4,6 +4,7 @@
     "artifact:optional-request-paths.json:/optional_paths",
     "packet:/observations/1/status",
     "packet:/observations/0/requests",
+    "packet:/observations/1/requests",
     "packet:/observations/2/requests"
   ]
 }

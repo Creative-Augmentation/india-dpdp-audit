@@ -72,8 +72,7 @@ class WooCommerceTests(unittest.TestCase):
             outcomes = run_checks(bundle)
             woo = [item for item in outcomes if item.check.stack == "woocommerce"]
             self.assertEqual(sorted(IDS), [item.check.id for item in woo])
-            self.assertEqual(["could_not_check", "ok", "could_not_check", "could_not_check", "could_not_check"],
-                             [item.result.status for item in woo])
+            self.assertEqual(["could_not_check"] * len(IDS), [item.result.status for item in woo])
 
     def test_missing_evidence_never_passes(self):
         for check_id, check in self.checks.items():
@@ -129,7 +128,7 @@ class WooCommerceTests(unittest.TestCase):
             "hook name": "$note = 'wp_privacy_personal_data_erasers';",
             "nowdoc": "$note = <<<'SAMPLE'\nadd_filter('wp_privacy_personal_data_erasers', 'sample_erase');\nSAMPLE;",
             "inline HTML": "?> add_filter('wp_privacy_personal_data_erasers', 'sample_erase'); <?php",
-            "method": "$other->add_filter('wp_privacy_personal_data_erasers', 'sample_erase');",
+            "unrelated method": "$hooks->add_filter('sample_checkout_hook', 'sample_callback');",
         }
         for name, decoy in decoys.items():
             with self.subTest(decoy=name):
@@ -138,6 +137,18 @@ class WooCommerceTests(unittest.TestCase):
                 self.assertEqual("gap", result.status)
                 self.assertNotIn(decoy, result.observation)
                 self.assertEqual(("artifact:woocommerce-plugin.php#L2-L2",), result.evidence_refs)
+
+    def test_php_ambiguous_eraser_registrations(self):
+        for registration in (
+            "$hooks->add_filter('wp_privacy_personal_data_erasers', 'sample_erase');",
+            'Demo_Hooks::ADD_FILTER("wp_privacy_personal_data_erasers", "sample_erase");',
+            "$privacy->add_eraser('sample_erase');",
+            r"class Demo_Privacy extends \WC_Abstract_Privacy {}",
+        ):
+            with self.subTest(registration=registration):
+                source = f"<?php\n{SYNTHETIC_WRITE}\n{registration}\n"
+                result = self.with_evidence("WOO-03b", {PLUGIN_SOURCE: source})
+                self.assertEqual("could_not_check", result.status)
 
     def test_php_comment_cannot_supply_a_personal_data_write(self):
         source = f"<?php\n/* {SYNTHETIC_WRITE} */\nupdate_user_meta($sample_id, 'demo_theme', $value);\n"
@@ -178,6 +189,25 @@ class WooCommerceTests(unittest.TestCase):
             "woocommerce-approved-roles.json": {"approved_roles": ["demo_manager"]},
         })
         self.assertEqual("could_not_check", result.status)
+
+    def test_inventory_requires_a_nonempty_list_and_known_categories(self):
+        for plugins, status in (
+            ([], "could_not_check"),
+            ([{"extension": "Demo Export", "category": "export"}], "could_not_check"),
+            ([{"extension": "Demo Display", "category": "other"}], "ok"),
+        ):
+            with self.subTest(plugins=plugins):
+                result = self.with_evidence("WOO-02a", {"woocommerce-plugins.json": {"plugins": plugins}})
+                self.assertEqual(status, result.status)
+
+    def test_roles_require_at_least_one_administrator_level_assignment(self):
+        for assignments in ([], [{"role": "demo_manager", "capabilities": ["edit_products"]}]):
+            with self.subTest(assignments=assignments):
+                result = self.with_evidence("WOO-04a", {
+                    "woocommerce-roles.json": {"assignments": assignments},
+                    "woocommerce-approved-roles.json": {"approved_roles": ["demo_manager"]},
+                })
+                self.assertEqual("could_not_check", result.status)
 
 
 if __name__ == "__main__":

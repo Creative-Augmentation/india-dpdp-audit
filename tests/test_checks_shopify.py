@@ -10,7 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from checks.evidence import EvidenceBundle
-from checks.registry import run_checks
+from checks.registry import registered_checks, run_checks
+from checks.retest import retest
 
 
 FIXTURES = ROOT / "checks" / "fixtures" / "shopify"
@@ -66,6 +67,19 @@ class ShopifyCheckTests(unittest.TestCase):
         self.assertEqual(set(results), IDS)
         self.assertEqual(results["SHP-01d"], "ok")
 
+    def test_retest_closes_each_gap_with_fixed_evidence(self):
+        for check in registered_checks():
+            if check.id not in IDS:
+                continue
+            with self.subTest(check_id=check.id):
+                folder = FIXTURES / check.id
+                original = EvidenceBundle.from_directory(folder / "positive")
+                fixed = EvidenceBundle.from_directory(folder / "negative")
+                previous = check.run(original)
+                self.assertEqual("gap", previous.status)
+                self.assertEqual("still_failing", retest(check, previous, original))
+                self.assertEqual("closed", retest(check, previous, fixed))
+
     def test_missing_evidence_cannot_pass(self):
         results = run_checks(EvidenceBundle(), stacks="shopify")
         self.assertEqual({entry.check.id for entry in results}, IDS)
@@ -105,6 +119,19 @@ class ShopifyCheckTests(unittest.TestCase):
         self.assertEqual(result.status, "gap")
         self.assertIn("before a choice", result.observation)
         self.assertIn("packet:/observations/0/requests/1", result.evidence_refs)
+
+    def test_optional_attempt_after_rejection_choice(self):
+        folder = FIXTURES / "SHP-01a" / "negative"
+        bundle = EvidenceBundle.from_directory(folder)
+        packet = bundle.packet
+        paths = json.loads(bundle.artifact_text("optional-request-paths.json"))
+        initial, reject, _ = packet["observations"][:3]
+        reject["requests"].append({**initial["requests"][0], "path": paths["optional_paths"][0]})
+
+        result = self.run_one("SHP-01a", self.bundle(packet, **{"optional-request-paths.json": paths}))
+        self.assertEqual("gap", result.status)
+        self.assertIn("after the rejection choice", result.observation)
+        self.assertIn("packet:/observations/1/requests/0", result.evidence_refs)
 
     def test_theme_comment_and_string_cannot_clear_an_unguarded_listener(self):
         result = self.theme("""
@@ -158,13 +185,19 @@ const note = "analytics.track('shelf_zoom');";
             "purposes": ["analytics", "marketing"], "config": "shopify.extension.toml",
         }]}
         config = 'type = "web_pixel_extension"\n[customer_privacy]\nanalytics = true\n'
+        bundles = {}
         for value, status in (("true", "ok"), ("false", "gap"), ('"true"', "could_not_check")):
             with self.subTest(value=value):
                 bundle = self.bundle(**{
                     "shopify-pixels.json": inventory,
                     "shopify.extension.toml": config + f"marketing = {value}\n",
                 })
+                bundles[status] = bundle
                 self.assertEqual(self.run_one("SHP-01c", bundle).status, status)
+        check = next(check for check in registered_checks() if check.id == "SHP-01c")
+        previous = check.run(bundles["gap"])
+        self.assertEqual(previous.evidence_refs, check.run(bundles["ok"]).evidence_refs)
+        self.assertEqual("closed", retest(check, previous, bundles["ok"]))
 
     def test_applicability_is_required_even_with_an_app_toml(self):
         bundle = self.bundle(**{"shopify.app.toml": 'name = "Sample widget"\n'})

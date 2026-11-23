@@ -2,7 +2,9 @@
 
 from pathlib import Path
 import json
+import subprocess
 import sys
+from tempfile import TemporaryDirectory
 import unittest
 from urllib.parse import urlsplit
 
@@ -81,6 +83,32 @@ class FixtureContractTests(unittest.TestCase):
         check = demo_check()
         self.assertNotIn(check.id, {registered.id for registered in registered_checks()})
         self.assert_fixtures(check, ROOT / "tests" / "check_fixtures")
+
+    def test_cli_detects_theme_and_plugin_source(self):
+        for stack, artifact, source, check_id, status in (
+            ("shopify", "shopify-theme.js", "analytics.track('shelf_zoom');\n", "SHP-01b", "gap"),
+            ("woocommerce", "woocommerce-plugin.php",
+             "<?php\nadd_filter('wp_privacy_personal_data_erasers', 'sample_erase');\n", "WOO-03b", "ok"),
+        ):
+            with self.subTest(stack=stack), TemporaryDirectory() as directory:
+                (Path(directory) / artifact).write_text(source, encoding="utf-8")
+                results = self.run_cli(directory)
+                self.assertEqual({stack}, {row["stack"] for row in results})
+                self.assertEqual(status, next(row["status"] for row in results if row["id"] == check_id))
+                self.assertEqual([], self.run_cli(directory, "--stack", "generic"))
+
+    def test_cli_runs_each_explicit_stack(self):
+        with TemporaryDirectory() as directory:
+            results = self.run_cli(directory, "--stack", "shopify", "--stack", "woocommerce")
+        self.assertEqual({"shopify", "woocommerce"}, {row["stack"] for row in results})
+
+    def run_cli(self, directory, *options):
+        process = subprocess.run(
+            [sys.executable, "-m", "checks", "run", directory, *options],
+            cwd=ROOT, capture_output=True, text=True,
+        )
+        self.assertEqual(0, process.returncode, process.stderr)
+        return json.loads(process.stdout)
 
     def test_result_invariants(self):
         ref = "packet:/observations/0/forms"

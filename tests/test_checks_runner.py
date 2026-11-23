@@ -150,7 +150,7 @@ class RunnerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             register(outcomes[0].check)
 
-    def test_retest_requires_a_new_resolvable_reference(self):
+    def test_retest_uses_recollected_evidence_at_the_same_locator(self):
         check = demo_check()
         fixture = ROOT / "tests" / "check_fixtures" / "generic" / check.id
         failing = EvidenceBundle.from_directory(fixture / "positive")
@@ -158,7 +158,7 @@ class RunnerTests(unittest.TestCase):
         previous = check.run(failing)
         self.assertEqual(retest(check, previous, failing), "still_failing")
         self.assertEqual(retest(check, previous, EvidenceBundle()), "could_not_check")
-        self.assertEqual(retest(check, previous, passing), "could_not_check")
+        self.assertEqual(retest(check, previous, passing), "closed")
         with TemporaryDirectory() as folder:
             root = Path(folder)
             (root / "recollected.json").write_text('{"descriptive": true}')

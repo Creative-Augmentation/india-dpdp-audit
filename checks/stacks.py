@@ -7,8 +7,8 @@ from urllib.parse import urlsplit
 from .evidence import EvidenceBundle, ORIGIN_REF
 
 
-SHOPIFY_ARTIFACTS = ("shopify.app.toml", "shopify.extension.toml")
-WOOCOMMERCE_ARTIFACTS = ("woocommerce-settings.json", "woocommerce-plugins.json")
+SHOPIFY_ARTIFACTS = ("shopify.app.toml", "shopify.extension.toml", "shopify-theme.js")
+WOOCOMMERCE_ARTIFACTS = ("woocommerce-settings.json", "woocommerce-plugins.json", "woocommerce-plugin.php")
 PLATFORMS = ("shopify", "woocommerce")
 
 
