@@ -115,7 +115,7 @@ class WooCommerceTests(unittest.TestCase):
         self.assertEqual("ok", result.status)
         self.assertIn("artifact:woocommerce-cleanup-sample.json:/outcomes", result.evidence_refs)
         for word in ("trash", "anonymization", "deletion"):
-            self.assertIn(word, result.observation)
+            self.assertIn(word, result.observation.lower())
         artifacts[SETTINGS]["retention"]["draft_orders"] = "5 days"
         self.assertEqual("gap", self.with_evidence("WOO-03a", artifacts).status)
         del artifacts[SETTINGS]["retention"]["draft_orders"]
