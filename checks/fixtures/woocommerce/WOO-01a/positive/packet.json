@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "authorized_origin": "https://glaze-shop.example",
+  "observations": [
+    {
+      "phase": "entry",
+      "status": "observed",
+      "reasons": [],
+      "page_status": 200,
+      "document_evidence_status": "observed",
+      "requests": [],
+      "forms": [],
+      "notices": [
+        {
+          "index": 1,
+          "visible_count": 0,
+          "truncated": false,
+          "evidence_status": "unknown"
+        }
+      ],
+      "storage": {
+        "cookies": 0,
+        "local": 0,
+        "session": 0
+      }
+    }
+  ]
+}
