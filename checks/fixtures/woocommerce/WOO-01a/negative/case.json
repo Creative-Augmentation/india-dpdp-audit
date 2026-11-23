@@ -1,0 +1,7 @@
+{
+  "expect": "ok",
+  "refs": [
+    "artifact:woocommerce-settings.json:/checkout_notice",
+    "packet:/observations/0/notices/0"
+  ]
+}

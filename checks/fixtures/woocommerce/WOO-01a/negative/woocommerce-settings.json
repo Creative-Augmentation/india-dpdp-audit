@@ -1,0 +1,8 @@
+{
+  "platform": "woocommerce",
+  "checkout_notice": {
+    "configured": true,
+    "phase": "entry",
+    "selector_index": 1
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "plugins": [
+    {
+      "extension": "Quiet Cart Metrics",
+      "category": "analytics",
+      "recipient": "Demo Metrics Processor"
+    }
+  ]
+}

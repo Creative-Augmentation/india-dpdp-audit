@@ -1,0 +1,6 @@
+{
+  "expect": "gap",
+  "refs": [
+    "artifact:woocommerce-plugins.json:/plugins/0"
+  ]
+}
