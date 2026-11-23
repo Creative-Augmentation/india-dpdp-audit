@@ -4,6 +4,7 @@ import argparse
 from dataclasses import asdict
 import json
 
+from .contract import STACKS
 from .evidence import EvidenceBundle
 from .registry import registered_checks, run_checks
 
@@ -20,6 +21,8 @@ def main(argv=None):
     run = commands.add_parser("run", help="Read evidence from a local directory.")
     run.add_argument("evidence_dir")
     run.add_argument("--packet", help="Read the collector packet from this local JSON file.")
+    run.add_argument("--stack", choices=STACKS, action="append",
+                     help="Select a stack explicitly. Repeat to select multiple stacks.")
     args = parser.parse_args(argv)
     if args.command == "list":
         rows = [_metadata(check) for check in registered_checks()]
@@ -28,7 +31,7 @@ def main(argv=None):
             bundle = EvidenceBundle.from_directory(args.evidence_dir, packet_path=args.packet)
         except (OSError, ValueError, RecursionError):
             parser.error("Supply a readable local evidence directory and a valid collector packet, if provided.")
-        rows = [{**_metadata(item.check), **asdict(item.result)} for item in run_checks(bundle)]
+        rows = [{**_metadata(item.check), **asdict(item.result)} for item in run_checks(bundle, stacks=args.stack)]
     print(json.dumps(rows, indent=2))
     return 0
 

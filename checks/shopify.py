@@ -26,7 +26,12 @@ ALLOWED_PATH = re.compile(r"/[A-Za-z0-9/_.~-]{0,199}")
 ASSET_NAME = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*")
 PURPOSES = {"analytics", "marketing", "preferences"}
 OPTIONAL_PURPOSES = {"analytics", "marketing"}
-REJECTION_PHASES = ("initial", "reject", "revisit_after_reject")
+REJECTION_TIMING = {
+    "initial": "before a choice",
+    "reject": "after the rejection choice",
+    "revisit_after_reject": "on the revisit after rejection",
+}
+REJECTION_PHASES = tuple(REJECTION_TIMING)
 CHOICE_PHASES = REJECTION_PHASES + ("accept", "revisit_after_accept", "withdraw",
                                   "revisit_after_withdraw")
 REQUEST_NEEDS = (Need("artifact", PATHS, "/optional_paths"), *(
@@ -75,7 +80,7 @@ def _optional_requests(bundle):
     reject_index, _ = phases["reject"]
     reject_refs = (path_ref, bundle.packet_ref(reject_index, "status"))
     sampled = []
-    for phase in ("initial", "revisit_after_reject"):
+    for phase, timing in REJECTION_TIMING.items():
         index, requests = phases[phase]
         sampled.append(bundle.packet_ref(index, "requests"))
         for request_index, request in enumerate(requests):
@@ -84,10 +89,9 @@ def _optional_requests(bundle):
                     or (request["path"] is not None and not isinstance(request["path"], str))):
                 return _unverified("A sampled request lacked an observed attempt.",
                                    "complete request-attempt evidence for the rejection branch",
-                                   "Recollect the initial and post-rejection request observations.")
+                                   "Recollect requests for the initial, rejection and rejection revisit phases.")
             if request["path"] not in paths:
                 continue
-            timing = "before a choice" if phase == "initial" else "on the revisit after rejection"
             return CheckResult(
                 "gap", f"The browser attempted an approved optional request {timing}.",
                 (*reject_refs, bundle.packet_ref(index, "requests", request_index)),
@@ -98,13 +102,14 @@ def _optional_requests(bundle):
                     "withdrawal, including revisits. Acceptance permits the expected optional request.",
                     Retest(
                         (REQUEST_NEEDS[0], *(Need("packet", name, "/requests") for name in CHOICE_PHASES)),
-                        "The new observed rejection branch has no approved optional attempts before choice "
-                        "or on revisit. The staged accept and withdraw traces confirm the expected sequence.",
+                        "The new observed rejection branch has no approved optional attempts before choice, "
+                        "after rejection or on revisit. The staged accept and withdraw traces confirm "
+                        "the expected sequence.",
                     ),
                 ),
             )
-    return CheckResult("ok", "No approved optional request attempts appeared before choice or on the "
-                       "revisit after rejection for the sampled path and observation window.",
+    return CheckResult("ok", "No approved optional request attempts appeared before choice, after rejection "
+                       "or on the rejection revisit for the sampled path and observation window.",
                        (*reject_refs, *sampled))
 
 

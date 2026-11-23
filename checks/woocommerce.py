@@ -35,6 +35,7 @@ PHASES = {
     "accept", "revisit_after_accept", "withdraw", "revisit_after_withdraw",
 }
 RECIPIENT_CATEGORIES = {"payment", "analytics", "shipping", "marketing"}
+PLUGIN_CATEGORIES = RECIPIENT_CATEGORIES | {"other"}
 ADMIN_CAPABILITIES = {
     "manage_options", "manage_network", "manage_network_options",
     "activate_plugins", "install_plugins", "update_plugins", "edit_plugins", "delete_plugins",
@@ -105,13 +106,15 @@ def _notice_result(settings_ref, notice_ref, count, phase):
 def _recipient_mapping(bundle):
     ref = bundle.artifact_ref(PLUGINS, "plugins")
     plugins = bundle.resolve(ref)
-    if not isinstance(plugins, list) or any(
+    if not isinstance(plugins, list) or not plugins or any(
         not isinstance(plugin, dict) or not _nonblank(plugin.get("extension"))
-        or not _nonblank(plugin.get("category")) for plugin in plugins
+        or not _nonblank(plugin.get("category")) or plugin["category"].strip().lower() not in PLUGIN_CATEGORIES
+        for plugin in plugins
     ):
         return _unverified("The supplied plugin inventory could not be classified.",
-                           "Plugin inventory with an extension label and category for each row",
-                           "Supply a redacted inventory with each extension labeled and categorized.")
+                           "Nonempty plugin inventory with an extension label and supported category for each row",
+                           "Supply a redacted inventory with each extension labeled and categorized as payment, "
+                           "analytics, shipping, marketing, or other.")
     unmapped = [
         bundle.artifact_ref(PLUGINS, "plugins", index) for index, plugin in enumerate(plugins)
         if plugin["category"].strip().lower() in RECIPIENT_CATEGORIES
@@ -202,12 +205,18 @@ def _admin_roles(bundle):
         return _unverified("The role assignments could not be compared with documented approvals.",
                            "Assigned roles with capability lists and an approved-role list",
                            "Supply a redacted assignment export with capabilities and the approved administrator roles.")
+    elevated = [
+        (index, row["role"].strip()) for index, row in enumerate(roles)
+        if ADMIN_CAPABILITIES.intersection(capability.strip() for capability in row["capabilities"])
+    ]
+    if not elevated:
+        return _unverified("The supplied export shows no assigned administrator-level capabilities.",
+                           "At least one assignment with administrator-level capabilities",
+                           "Supply a redacted assignment export that includes roles with administrator-level capabilities.")
     allowed = {role.strip() for role in approved}
     excess = [
-        bundle.artifact_ref(ROLES, "assignments", index) for index, row in enumerate(roles)
-        if row["role"].strip() not in allowed and ADMIN_CAPABILITIES.intersection(
-            capability.strip() for capability in row["capabilities"]
-        )
+        bundle.artifact_ref(ROLES, "assignments", index) for index, role in elevated
+        if role not in allowed
     ]
     if not excess:
         return CheckResult("ok", "The supplied export shows administrator-level capabilities used by assigned roles "
@@ -391,24 +400,34 @@ def _callback_argument(tokens, bounds):
 
 def _plugin_calls(tokens, closings):
     """Find direct registration and recognizable writes, with source spans."""
-    write = None
+    registration, write = None, None
     ambiguous_hook = False
     order_vars, order_writes = {}, {}
     for index, token in enumerate(tokens[:-1]):
-        opening = index + 1
-        if tokens[opening].text != "(":
-            continue
         name = token.text.removeprefix("\\").lower()
+        opening = index + 1
+        following = tokens[opening].text
+        if name == "extends" and following.removeprefix("\\").lower() == "wc_abstract_privacy":
+            return None, write, True
+        if following != "(":
+            continue
+        operator = tokens[index - 1].text if index else ""
         plain = _plain_call(tokens, index)
         end = closings[opening]
         span = (token.first_line, tokens[end].last_line)
-        if plain and name in {"add_filter", "add_action", "call_user_func", "call_user_func_array"}:
+        if name == "add_eraser" and operator in {"->", "?->"}:
+            return None, write, True
+        if name == "add_filter" and operator in {"->", "?->", "::"}:
+            args = _arguments(tokens, closings, opening + 1, end)
+            if args and _literal(tokens, args[0]) == ERASER_FILTER:
+                return None, write, True
+        elif plain and name in {"add_filter", "add_action", "call_user_func", "call_user_func_array"}:
             args = _arguments(tokens, closings, opening + 1, end)
             hook = _literal(tokens, args[0]) if args else None
             if name in {"call_user_func", "call_user_func_array"}:
                 ambiguous_hook |= hook in {"add_filter", "add_action", "\\add_filter", "\\add_action"}
             elif hook == ERASER_FILTER and len(args) >= 2 and _callback_argument(tokens, args[1]):
-                return span, write, ambiguous_hook
+                registration = registration or span
             else:
                 ambiguous_hook |= hook is None or hook == ERASER_FILTER or "\\" in hook or "$" in hook
         elif plain and name in USER_META_WRITES:
@@ -420,7 +439,7 @@ def _plugin_calls(tokens, closings):
             if receiver.startswith("$"):
                 order_vars[receiver] = span[0]
                 order_writes.pop(receiver, None)
-        elif index >= 2 and tokens[index - 1].text == "->":
+        elif index >= 2 and operator == "->":
             receiver = tokens[index - 2].text
             if receiver == "$wpdb" and name in TABLE_WRITES:
                 args = _arguments(tokens, closings, opening + 1, end)
@@ -432,7 +451,7 @@ def _plugin_calls(tokens, closings):
                     order_writes[receiver] = order_vars[receiver]
             elif receiver in order_writes and name == "save":
                 write = write or (order_writes[receiver], span[1])
-    return None, write, ambiguous_hook
+    return registration, write, ambiguous_hook
 
 
 def _plugin_eraser(bundle):
@@ -451,7 +470,7 @@ def _plugin_eraser(bundle):
     if ambiguous_hook or not write:
         return _unverified("The supplied source did not establish both a personal-data write and its eraser-hook status.",
                            "Recognizable personal-data write and identifiable eraser-hook registrations",
-                           "Supply redacted source showing the write and the code that determines the eraser hook name.")
+                           "Supply redacted source showing the write and how the plugin registers its eraser hook.")
     fix = Fix(
         "Personal-data eraser filter in the custom plugin", "plugin developer",
         "Register a WordPress personal-data eraser for the plugin and implement or document coverage of each store.",
