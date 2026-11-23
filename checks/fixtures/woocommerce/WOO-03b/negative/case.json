@@ -1,0 +1,6 @@
+{
+  "expect": "ok",
+  "refs": [
+    "artifact:woocommerce-plugin.php#L5-L5"
+  ]
+}

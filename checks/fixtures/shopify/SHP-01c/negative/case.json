@@ -1,0 +1,7 @@
+{
+  "expect": "ok",
+  "refs": [
+    "artifact:shopify-pixels.json:/pixels/0/purposes",
+    "artifact:shopify-pixels.json:/pixels/0/customer_privacy/marketing"
+  ]
+}

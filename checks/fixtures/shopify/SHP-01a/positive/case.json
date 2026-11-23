@@ -1,0 +1,8 @@
+{
+  "expect": "gap",
+  "refs": [
+    "artifact:optional-request-paths.json:/optional_paths",
+    "packet:/observations/1/status",
+    "packet:/observations/2/requests/0"
+  ]
+}

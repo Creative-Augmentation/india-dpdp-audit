@@ -1,0 +1,7 @@
+{
+  "expect": "gap",
+  "refs": [
+    "artifact:shopify-subject.json:/distribution",
+    "artifact:shopify.app.toml#L1-L6"
+  ]
+}

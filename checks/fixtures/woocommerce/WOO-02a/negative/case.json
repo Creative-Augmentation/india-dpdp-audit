@@ -1,0 +1,6 @@
+{
+  "expect": "ok",
+  "refs": [
+    "artifact:woocommerce-plugins.json:/plugins"
+  ]
+}

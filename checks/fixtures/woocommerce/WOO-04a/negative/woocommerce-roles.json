@@ -1,0 +1,19 @@
+{
+  "platform": "woocommerce",
+  "assignments": [
+    {
+      "role": "demo_site_steward",
+      "capabilities": [
+        "read",
+        "manage_options"
+      ]
+    },
+    {
+      "role": "demo_catalog_helper",
+      "capabilities": [
+        "read",
+        "edit_products"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "expect": "ok",
+  "refs": [
+    "artifact:woocommerce-settings.json:/retention",
+    "artifact:woocommerce-retention-schedule.json:/periods"
+  ]
+}

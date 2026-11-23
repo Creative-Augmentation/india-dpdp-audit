@@ -1,0 +1,7 @@
+{
+  "expect": "gap",
+  "refs": [
+    "artifact:woocommerce-roles.json:/assignments/1",
+    "artifact:woocommerce-approved-roles.json:/approved_roles"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "expect": "gap",
+  "refs": [
+    "artifact:shopify-theme.js#L2-L2"
+  ]
+}

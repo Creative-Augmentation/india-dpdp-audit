@@ -1,0 +1,6 @@
+{
+  "platform": "shopify",
+  "scripts": [
+    "rack.js"
+  ]
+}

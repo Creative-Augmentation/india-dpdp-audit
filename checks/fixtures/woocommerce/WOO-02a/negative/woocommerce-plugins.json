@@ -1,0 +1,10 @@
+{
+  "plugins": [
+    {
+      "extension": "Crate Route Demo",
+      "category": "shipping",
+      "recipient": "Demo Parcel Processor",
+      "contract_owner": "Dispatch operations"
+    }
+  ]
+}

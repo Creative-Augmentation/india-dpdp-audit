@@ -1,0 +1,7 @@
+{
+  "expect": "gap",
+  "refs": [
+    "artifact:shopify-pixels.json:/pixels/0/purposes",
+    "artifact:shopify.extension.toml#L1-L2"
+  ]
+}

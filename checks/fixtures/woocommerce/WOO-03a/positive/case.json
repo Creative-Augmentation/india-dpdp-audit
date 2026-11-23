@@ -1,0 +1,7 @@
+{
+  "expect": "gap",
+  "refs": [
+    "artifact:woocommerce-settings.json:/retention/failed_orders",
+    "artifact:woocommerce-retention-schedule.json:/periods/failed_orders"
+  ]
+}

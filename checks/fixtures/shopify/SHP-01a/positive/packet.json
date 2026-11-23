@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "authorized_origin": "https://rack.example",
+  "observations": [
+    {
+      "phase": "initial",
+      "status": "observed",
+      "reasons": [],
+      "requests": [
+        {
+          "origin": "https://rack.example",
+          "path": "/cdn/shop/rack.js",
+          "method": "GET",
+          "resource_type": "script",
+          "attempt_evidence_status": "observed",
+          "response_evidence_status": "observed",
+          "disposition": "observed",
+          "status": 200,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "phase": "reject",
+      "status": "observed",
+      "reasons": [],
+      "requests": []
+    },
+    {
+      "phase": "revisit_after_reject",
+      "status": "observed",
+      "reasons": [],
+      "requests": [
+        {
+          "origin": "https://rack.example",
+          "path": "/events/rack-meter",
+          "method": "GET",
+          "resource_type": "fetch",
+          "attempt_evidence_status": "observed",
+          "response_evidence_status": "observed",
+          "disposition": "observed",
+          "status": 200,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "phase": "accept",
+      "status": "not_attempted",
+      "reasons": [
+        "action_not_configured"
+      ],
+      "requests": []
+    },
+    {
+      "phase": "revisit_after_accept",
+      "status": "not_attempted",
+      "reasons": [
+        "action_not_configured"
+      ],
+      "requests": []
+    },
+    {
+      "phase": "withdraw",
+      "status": "not_attempted",
+      "reasons": [
+        "action_not_configured"
+      ],
+      "requests": []
+    },
+    {
+      "phase": "revisit_after_withdraw",
+      "status": "not_attempted",
+      "reasons": [
+        "action_not_configured"
+      ],
+      "requests": []
+    }
+  ]
+}
