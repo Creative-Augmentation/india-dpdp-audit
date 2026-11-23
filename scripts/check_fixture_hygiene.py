@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE_TREES = ("evals/cases", "benchmark/cases", "benchmark/sites")
+FIXTURE_TREES = ("evals/cases", "benchmark/cases", "benchmark/sites", "checks/fixtures")
 EXAMPLE_RECORD = "skills/india-dpdp-audit/assets/example-audit.json"
 # The example audit cites this exact official MeitY publication. Keep exceptions
 # limited to individually reviewed primary legal or vendor citations.
