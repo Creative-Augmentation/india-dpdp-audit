@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT))
 from checks.audit_bridge import build_audit_record
 from checks.contract import Basis, Check, CheckResult, Need
 from checks.evidence import EvidenceBundle, MAX_FILE_BYTES
-from checks.registry import register, run_checks
+from checks.registry import register, registered_checks, run_checks
 from checks.retest import retest
 from checks.stacks import detect_stacks
 from tests.test_checks_contract import demo_check
@@ -29,9 +29,40 @@ def packet(status="observed", **fields):
 
 class RunnerTests(unittest.TestCase):
     def setUp(self):
-        registry = patch("checks.registry._CHECKS", {})
+        registry = patch.multiple("checks.registry", _CHECKS={}, _PLATFORM_MODULES=(),
+                                  _PLATFORM_MODULES_LOADED=False)
         registry.start()
         self.addCleanup(registry.stop)
+
+    def test_platform_loader_skips_missing_module_and_registers_checks_once(self):
+        missing, present = "checks.missing_demo", "checks.present_demo"
+        check = replace(demo_check(), id="S-DEMO", stack="shopify")
+
+        def import_platform(name):
+            if name == missing:
+                raise ModuleNotFoundError(name=missing)
+            register(check)
+
+        with (
+            patch("checks.registry._PLATFORM_MODULES", (missing, present)),
+            patch("checks.registry.import_module", side_effect=import_platform) as importer,
+        ):
+            outcomes = run_checks(EvidenceBundle(), "shopify")
+            self.assertEqual(tuple(row.check for row in outcomes), (check,))
+            self.assertEqual(registered_checks(), (check,))
+            self.assertEqual([entry.args for entry in importer.call_args_list], [(missing,), (present,)])
+
+    def test_platform_loader_propagates_errors_from_existing_module(self):
+        present = "checks.present_demo"
+        for error in (ModuleNotFoundError(name="demo_dependency"), ImportError("Invalid demo import")):
+            with (
+                self.subTest(error=error),
+                patch("checks.registry._PLATFORM_MODULES", (present,)),
+                patch("checks.registry.import_module", side_effect=error),
+            ):
+                with self.assertRaises(ImportError) as raised:
+                    registered_checks()
+                self.assertIs(raised.exception, error)
 
     def test_absent_or_incomplete_evidence_prevents_decision(self):
         need = Need("packet", "initial", "/forms")
